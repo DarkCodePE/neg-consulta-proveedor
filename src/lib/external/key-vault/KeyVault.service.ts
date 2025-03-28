@@ -10,7 +10,7 @@ import {
   AZURE_CLIENT_ID,
   AZURE_CLIENT_SECRET,
   AZURE_TENANT_ID,
-} from '@/lib/config/AppConfig';
+} from '../../config/AppConfig';
 
 @Injectable()
 export class KeyVaultService {
@@ -28,7 +28,7 @@ export class KeyVaultService {
       const clientId = AZURE_CLIENT_ID;
       const clientSecret = AZURE_CLIENT_SECRET;
 
-      this.logger.log(`Initializing KeyVault client with URL: ${vaultUrl}`);
+      this.logger.log('Initializing KeyVault client connection');
 
       const credential = new ClientSecretCredential(
         tenantId,
@@ -36,7 +36,6 @@ export class KeyVaultService {
         clientSecret,
       );
       this.client = new SecretClient(vaultUrl, credential);
-
       this.validateConnection();
     } catch (error) {
       this.logger.error(`Error initializing KeyVault client: ${error.message}`);
@@ -48,7 +47,6 @@ export class KeyVaultService {
 
   private validateVaultUrl(vaultUrl: string): string {
     if (!vaultUrl) {
-      this.logger.error('KeyVault URL is null, empty or undefined');
       throw new InternalServerErrorException(
         'KeyVault URL is null, empty or undefined.',
       );
@@ -58,22 +56,16 @@ export class KeyVaultService {
 
   private async validateConnection(): Promise<void> {
     try {
-      this.logger.log('Validating KeyVault connection...');
-      // List secrets to validate connection without requiring a specific secret name
-      const iterator = this.client.listPropertiesOfSecrets();
-      const firstItem = await iterator.next();
-
-      if (!firstItem.done) {
-        this.logger.log('Successfully connected to Azure KeyVault');
-      } else {
-        this.logger.log('Connected to KeyVault but no secrets found');
-      }
+      // Verifica la conexión consultando un secreto conocido
+      await this.client.getSecret('DB-NAME');
+      this.logger.log('KeyVault connection established successfully');
     } catch (error) {
       this.logger.error(
-        `Failed to establish a connection with Azure Key Vault: ${error.message}`,
+        'Failed to establish connection with Azure Key Vault',
+        error,
       );
       throw new InternalServerErrorException(
-        `Failed to establish a connection with Azure Key Vault: ${error.message}`,
+        'Failed to establish a connection with Azure Key Vault.',
       );
     }
   }
@@ -89,24 +81,6 @@ export class KeyVaultService {
       );
       throw new InternalServerErrorException(
         `Error retrieving secret "${secretName}": ${error.message}`,
-      );
-    }
-  }
-
-  async listSecrets(): Promise<string[]> {
-    try {
-      this.logger.debug('Listing all available secrets');
-      const secrets: string[] = [];
-
-      for await (const secretProperties of this.client.listPropertiesOfSecrets()) {
-        secrets.push(secretProperties.name);
-      }
-
-      return secrets;
-    } catch (error) {
-      this.logger.error(`Error listing secrets: ${error.message}`);
-      throw new InternalServerErrorException(
-        `Error listing secrets: ${error.message}`,
       );
     }
   }
