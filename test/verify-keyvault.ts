@@ -3,7 +3,6 @@
 import 'dotenv/config';
 import { SecretClient } from '@azure/keyvault-secrets';
 import { ClientSecretCredential } from '@azure/identity';
-import chalk from 'chalk';
 
 // Cargar variables de entorno
 const {
@@ -14,11 +13,11 @@ const {
 } = process.env;
 
 async function listarSecretos() {
-  console.log(chalk.bold('\n🔐 Verificando conexión con Azure Key Vault...'));
-  console.log(chalk.gray('----------------------------------------------'));
+  console.log('\n🔐 Verificando conexión con Azure Key Vault...');
+  console.log('----------------------------------------------');
 
   if (!KEYVAULT_SERVICE_URL || !AZURE_TENANT_ID || !AZURE_CLIENT_ID || !AZURE_CLIENT_SECRET) {
-    console.error(chalk.red('❌ Faltan variables de entorno necesarias.'));
+    console.error('❌ Faltan variables de entorno necesarias.');
     return;
   }
 
@@ -44,7 +43,7 @@ async function listarSecretos() {
   console.log(`✅ Conexión exitosa: ${secretos.length} secreto(s) encontrados.`);
   secretos.forEach((s) => console.log(`  - ${s}`));
 
-  // Opcional: recuperar los valores de cada secreto
+  // Recuperar los valores de cada secreto (opcional)
   for (const secretName of secretos) {
     console.log(`\n🔍 Intentando acceder al secreto: ${secretName}`);
     const secret = await client.getSecret(secretName);
@@ -52,10 +51,10 @@ async function listarSecretos() {
     console.log(`   🔑 Valor: ${secret.value}`);
   }
 
-  console.log(chalk.gray('\n----------------------------------------------'));
-  console.log(chalk.green('✅ Verificación de Key Vault finalizada con éxito.'));
+  console.log('\n----------------------------------------------');
+  console.log('✅ Verificación de Key Vault finalizada con éxito.');
 }
 
 listarSecretos().catch((err) => {
-  console.error(chalk.red('❌ Error al acceder al Key Vault:'), err.message);
+  console.error('❌ Error al acceder al Key Vault:', err.message);
 });
