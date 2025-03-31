@@ -96,3 +96,124 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Mae_CompaniaSeguros](
+	[idCompaniaSeguros] [nvarchar](max) NULL,
+	[idPersonaJuridica] [nvarchar](max) NULL,
+	[codIafa] [nvarchar](max) NULL,
+	[desCompaniaSeguros] [nvarchar](max) NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[fecCreacion] [datetime] NULL,
+	[codUsuarioModificador] [nvarchar](max) NULL,
+	[fecModificacion] [datetime] NULL,
+	[ruc] [nvarchar](max) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Mae_Persona](
+	[idPersona] [nvarchar](max) NULL,
+	[tipPersona] [nvarchar](max) NULL,
+	[nomCompletoPersona] [nvarchar](max) NULL,
+	[nomAbreviadoPersona] [nvarchar](max) NULL,
+	[codTipoDocumento] [nvarchar](max) NULL,
+	[nroDocumento] [nvarchar](max) NULL,
+	[desPaginaWeb] [nvarchar](max) NULL,
+	[codTipoTrabajador] [nvarchar](max) NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[fecCreacion] [datetime] NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[fecModificacion] [datetime] NULL,
+	[codUsuarioModificador] [nvarchar](max) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Mae_PersonaJuridica](
+	[idPersona] [nvarchar](max) NULL,
+	[fecAniversario] [datetime] NULL,
+	[nomRazonSocial] [nvarchar](max) NULL,
+	[nomRazonSocialAbreviada] [nvarchar](max) NULL,
+	[codGrupoEconomico] [nvarchar](max) NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[codUsuarioModificador] [nvarchar](max) NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[fecModificacion] [datetime] NULL,
+	[fecCreacion] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Mae_Proveedor](
+	[idProveedor] [nvarchar](max) NULL,
+	[idPersona] [nvarchar](max) NULL,
+	[idTipoProveedor] [nvarchar](max) NULL,
+	[codProveedor] [nvarchar](max) NULL,
+	[tipProveedor] [nvarchar](max) NULL,
+	[indCertificacion] [nvarchar](max) NULL,
+	[indRedSelecta] [nvarchar](max) NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[codUsuarioModificador] [nvarchar](max) NULL,
+	[fecCreacion] [datetime] NULL,
+	[fecModificacion] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Tbt_PersonaCompaniaSeguro](
+	[idPersonaCompaniaSeguro] [nvarchar](max) NULL,
+	[idPersona] [nvarchar](max) NULL,
+	[idCompaniaSeguro] [nvarchar](max) NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[codUsuarioModificador] [nvarchar](max) NULL,
+	[fecCreacion] [datetime] NULL,
+	[fecModificacion] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Tbt_Rol](
+	[tipRolId] [nvarchar](max) NULL,
+	[codLval] [nvarchar](max) NULL,
+	[desRol] [nvarchar](max) NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[fecCreacion] [datetime] NULL,
+	[codUsuarioModificador] [nvarchar](max) NULL,
+	[fecModificacion] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Tbt_TipoProveedor](
+	[idTipProveedor] [nvarchar](max) NULL,
+	[tipProveedor] [nvarchar](max) NULL,
+	[desTipoProveedor] [nvarchar](max) NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[fecCreacion] [datetime] NULL,
+	[codUsuarioModificador] [nvarchar](max) NULL,
+	[fecModificacion] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
