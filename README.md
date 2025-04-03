@@ -216,4 +216,4 @@ CREATE TABLE [persona].[Tbt_TipoProveedor](
 	[fecModificacion] [datetime] NULL
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-
+servidor-pacifico-db.database.windows.net admin-pacifico
