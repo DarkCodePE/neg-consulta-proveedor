@@ -1,0 +1,382 @@
+[
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "X",
+    "desRol": "Empleados de PPS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "Y",
+    "desRol": "ACCIONISTAS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "F",
+    "desRol": "CLINICAS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "A",
+    "desRol": "CLIENTES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "B",
+    "desRol": "AGENTES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "D",
+    "desRol": "ACEPTANTES DE RIESGO",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "G",
+    "desRol": "PROCURADORES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "H",
+    "desRol": "INSPECTORES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "I",
+    "desRol": "AJUSTADORES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "J",
+    "desRol": "PROVEEDORES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "K",
+    "desRol": "RECUPERADORES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "O",
+    "desRol": "ENDOSATARIOS / BENEFICIARIOS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "V",
+    "desRol": "EJECUTIVOS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "Z",
+    "desRol": "COBRADORES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "W",
+    "desRol": "MEDICOS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "E",
+    "desRol": "TALLERES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "T",
+    "desRol": "CONTACTOS-DEPENDIENTES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "M",
+    "desRol": "ASEGURADOS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "L",
+    "desRol": "PROVEEDORES INTERNACIONALES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "X",
+    "desRol": "Empleados de PPS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "Y",
+    "desRol": "ACCIONISTAS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "A",
+    "desRol": "CLIENTES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "B",
+    "desRol": "AGENTES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "D",
+    "desRol": "ACEPTANTES DE RIESGO",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "F",
+    "desRol": "CLINICAS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "G",
+    "desRol": "PROCURADORES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "H",
+    "desRol": "INSPECTORES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "I",
+    "desRol": "AJUSTADORES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "J",
+    "desRol": "PROVEEDORES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "K",
+    "desRol": "RECUPERADORES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "O",
+    "desRol": "ENDOSATARIOS / BENEFICIARIOS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "V",
+    "desRol": "EJECUTIVOS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "T",
+    "desRol": "CONTACTOS-DEPENDIENTES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "Z",
+    "desRol": "COBRADORES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "M",
+    "desRol": "ASEGURADOS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "L",
+    "desRol": "PROVEEDORES INTERNACIONALES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "E",
+    "desRol": "TALLERES",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  },
+  {
+    "tipRolId": "TIPOID",
+    "codLval": "W",
+    "desRol": "MEDICOS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "root",
+    "fecCreacion": "2025-03-30T23:34:44.51",
+    "codUsuarioModificador": "root",
+    "fecModificacion": "2025-03-30T23:34:44.51"
+  }
+]

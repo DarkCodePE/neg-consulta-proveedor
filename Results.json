@@ -1,0 +1,26 @@
+[
+  {
+    "idCompaniaSeguros": "01JQA3NQ79Q5F4CF2349PN2343",
+    "idPersonaJuridica": "01JQ7MKA6R8DC1FXHAZQ9MQVDJ",
+    "codIafa": "20002",
+    "desCompaniaSeguros": "PACIFICO SALUD",
+    "estRegistro": "V",
+    "codUsuarioCreador": "CONSULTA",
+    "fecCreacion": "2025-03-12T22:17:06.29",
+    "codUsuarioModificador": "CONSULTA",
+    "fecModificacion": "2025-03-12T22:17:06.29",
+    "ruc": "20136096592"
+  },
+  {
+    "idCompaniaSeguros": "01JQA3NQ79HWDBRXP9ZNT41S5T",
+    "idPersonaJuridica": "01JQ7MKA6QYTP6DYBS402MF4F2",
+    "codIafa": "40004",
+    "desCompaniaSeguros": "PACIFICO SEGUROS",
+    "estRegistro": "V",
+    "codUsuarioCreador": "CONSULTA",
+    "fecCreacion": "2025-03-12T22:17:06.29",
+    "codUsuarioModificador": "CONSULTA",
+    "fecModificacion": "2025-03-12T22:17:06.29",
+    "ruc": "20121791383"
+  }
+]
