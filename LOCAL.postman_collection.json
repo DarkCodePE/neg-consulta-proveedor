@@ -1,0 +1,166 @@
+{
+	"info": {
+		"_postman_id": "c4e704d8-8eec-409c-8dbd-6fd724eb8990",
+		"name": "LOCAL",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "17432122",
+		"_collection_link": "https://pacifico-dev.postman.co/workspace/PACIFICO-LOCAL~29c2e288-f2c9-44ad-883d-29327c445116/collection/17432122-c4e704d8-8eec-409c-8dbd-6fd724eb8990?action=share&source=collection_link&creator=17432122"
+	},
+	"item": [
+		{
+			"name": "provider-search",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Correlation-Id",
+						"value": "123456789"
+					},
+					{
+						"key": "X-Request-Id",
+						"value": "REQ-2025-001"
+					},
+					{
+						"key": "nombreAplicacion",
+						"value": "TestApp"
+					},
+					{
+						"key": "procesoNegocio",
+						"value": "BusquedaProveedores"
+					},
+					{
+						"key": "usuarioAplicacion",
+						"value": "admin"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"codigoProveedor\": \"10002\",\n  \"pageSize\": 10,\n  \"pageStartIndex\": 0\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:3000/api/v1/proveedores/search",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"v1",
+						"proveedores",
+						"search"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "proveedor x sucursal",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:3000/api/v1/proveedores/10001/sucursal",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"v1",
+						"proveedores",
+						"10001",
+						"sucursal"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "proveedor por id",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:3002/api/v1/proveedores/10001",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3002",
+					"path": [
+						"api",
+						"v1",
+						"proveedores",
+						"10001"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "http://localhost:3000/api/v1/proveedores/10001/sucursal/1",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:3000/api/v1/proveedores/10001/sucursal/1",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"v1",
+						"proveedores",
+						"10001",
+						"sucursal",
+						"1"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
