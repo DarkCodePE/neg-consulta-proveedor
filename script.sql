@@ -1,3 +1,12 @@
+-- Desactivar mensajes de conteo de filas para hacer más limpia la ejecución
+SET NOCOUNT ON;
+GO
+
+-- Variables para auditoría
+DECLARE @UsuarioCreador VARCHAR(15) = 'ADMIN';
+DECLARE @UsuarioSistema VARCHAR(15) = 'SYSTEM';
+DECLARE @FechaActual DATETIME = GETDATE();
+
 PRINT 'Iniciando inserción de datos...';
 
 -- Insertar tipos de roles
