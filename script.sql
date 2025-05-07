@@ -351,3 +351,27 @@ SELECT 'Persona-CompañíaSeguro', COUNT(*) FROM persona.Tbt_PersonaCompaniaSegu
 UNION ALL
 SELECT 'Sucursal-CompañíaSeguro', COUNT(*) FROM persona.Mae_SucursalCompaniaSeguro;
 */
+
+/*
+
+curl -X POST "https://apim-eu1-border-service-desa.azure-api.net/ne-consulta-personaProveedores-eps/persona/v1.0.0/proveedor/search" \
+  -H "Ocp-Apim-Subscription-Key: 356891414ddd41148bb80c4e69e26fd6" \
+  -H "Content-Type: application/json" \
+  -H "X-Correlation-Id: test-correlation-id" \
+  -H "X-Request-Id: test-request-id" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: Testing" \
+  -H "usuarioAplicacion: TestUser" \
+  -d '{
+    "pageSize": 10,
+    "pageStartIndex": 0
+  }'
+
+curl -X GET "https://apim-eu1-border-service-desa.azure-api.net/ne-consulta-personaProveedores-eps/persona/v1.0.0/proveedor/health" \
+  -H "Ocp-Apim-Subscription-Key: 356891414ddd41148bb80c4e69e26fd6"
+
+curl -X GET "https://apim-eu1-border-service-desa.azure-api.net/ne-consulta-personaProveedores-eps/persona/v1.0.0/proveedor/health" \
+  -H "Ocp-Apim-Subscription-Key: 356891414ddd41148bb80c4e69e26fd6" \
+  -H "X-Correlation-Id: test-correlation-id" \
+  -H "X-Request-Id: test-request-id"
+ */
