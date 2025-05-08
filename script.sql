@@ -374,4 +374,10 @@ curl -X GET "https://apim-eu1-border-service-desa.azure-api.net/ne-consulta-pers
   -H "Ocp-Apim-Subscription-Key: 356891414ddd41148bb80c4e69e26fd6" \
   -H "X-Correlation-Id: test-correlation-id" \
   -H "X-Request-Id: test-request-id"
+
+
+
+$token = "tu-token-personal-de-acceso"
+$encodedToken = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($token))
+Write-Output $encodedToken
  */
