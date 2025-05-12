@@ -402,4 +402,7 @@ curl -X GET "https://apim-eu1-border-service-desa.azure-api.net/ne-consulta-pers
   -H "Ocp-Apim-Subscription-Key: 356891414ddd41148bb80c4e69e26fd6" \
   -H "X-Correlation-Id: test-correlation-id" \
   -H "X-Request-Id: test-request-id"
+
+curl -X POST "http://localhost:3000/ne-consulta-personaProveedores-eps/persona/v1.0.0/proveedor/search" -H "Ocp-Apim-Subscription-Key: 356891414ddd4148bb80c4e69e26fd6" -H "Content-Type: application/json" -d "{\"pageSize\": 10, \"pageStartIndex\": 0}"
+curl -X POST 'http://localhost:3000/ne-consulta-personaProveedores-eps/persona/v1.0.0/proveedor/search' -H 'Ocp-Apim-Subscription-Key: 356891414ddd4148bb80c4e69e26fd6' -H 'Content-Type: application/json' -d '{"pageSize": 10, "pageStartIndex": 0}'
  */
