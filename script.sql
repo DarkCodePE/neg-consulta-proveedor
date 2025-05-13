@@ -405,4 +405,9 @@ curl -X GET "https://apim-eu1-border-service-desa.azure-api.net/ne-consulta-pers
 
 curl -X POST "http://localhost:3000/ne-consulta-personaProveedores-eps/persona/v1.0.0/proveedor/search" -H "Ocp-Apim-Subscription-Key: 356891414ddd4148bb80c4e69e26fd6" -H "Content-Type: application/json" -d "{\"pageSize\": 10, \"pageStartIndex\": 0}"
 curl -X POST 'http://localhost:3000/ne-consulta-personaProveedores-eps/persona/v1.0.0/proveedor/search' -H 'Ocp-Apim-Subscription-Key: 356891414ddd4148bb80c4e69e26fd6' -H 'Content-Type: application/json' -d '{"pageSize": 10, "pageStartIndex": 0}'
- */
+ curl --location 'https://apim-eu1-border-service-desa.azure-api.net/ot-configServer/config/srv-ms-sm-ne-ods-consultaProveedor/development?files=application.yml' \
+--header 'x-api-key: df584e6f4dcc46e183a100d16da13c54' \
+--header 'ocp-apim-subscription-key: df584e6f4dcc46e183a100d16da13c54' \
+--data ''
+
+*/
