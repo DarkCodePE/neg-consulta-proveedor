@@ -539,4 +539,13 @@ bashcurl -X GET 'http://localhost:3000/api/v1/proveedores/99999' -H 'Accept: app
 Petición con Parámetros Inválidos
 bashcurl -X POST 'http://localhost:3000/api/v1/proveedores/buscar' -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{"estado": "ESTADO_INVALIDO", "pageSize": -1}'RetryClaude can make mistakes. Please double-check responses.
 
+osea probe este tambien
+ese di deberia estar no?
+Si debería estar
+Lo válido
+Tú tienes postman
+En tu vm
+?
+https://dl.pstmn.io/download/version/11.7.0/win64
+
 */
