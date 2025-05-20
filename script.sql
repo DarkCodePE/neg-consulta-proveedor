@@ -410,4 +410,101 @@ curl -X POST 'http://localhost:3000/ne-consulta-personaProveedores-eps/persona/v
 --header 'ocp-apim-subscription-key: df584e6f4dcc46e183a100d16da13c54' \
 --data ''
 
+
+Endpoints de Proveedores
+1. Búsqueda de Proveedores con Filtros
+bashcurl -X POST \
+  'http://localhost:3000/api/v1/proveedores/buscar' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -d '{
+    "codigoProveedor": "10001",
+    "tipoProveedor": "1",
+    "estado": "V",
+    "tipoPersona": "J",
+    "numeroDocumento": "20507264108",
+    "tipoDocumento": "RUC",
+    "razonSocial": "Clínica San Pablo",
+    "eps": "PACIFICO SALUD",
+    "indicadorRedSelecta": "S",
+    "pageSize": 10,
+    "pageStartIndex": 0,
+    "sort": [
+      {
+        "field": "razonSocial",
+        "direction": "asc"
+      }
+    ]
+  }'
+2. Obtener Proveedor por Código
+bashcurl -X GET \
+  'http://localhost:3000/api/v1/proveedores/10001' \
+  -H 'Accept: application/json'
+3. Búsqueda Simplificada de Proveedores
+bashcurl -X GET \
+  'http://localhost:3000/api/v1/proveedores?eps=PACIFICO%20SALUD&tipoPersona=J&estado=V&pagina=1&registrosPorPagina=20' \
+  -H 'Accept: application/json'
+Endpoints de Sucursales
+1. Búsqueda de Sucursales con Filtros
+bashcurl -X POST \
+  'http://localhost:3000/api/v1/sucursales/buscar' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -d '{
+    "codigoProveedor": "10001",
+    "numeroSucursalProveedor": "1",
+    "codIpress": "CSP-SURCO",
+    "estado": "V",
+    "indicadorPrincipalSucursal": "P",
+    "eps": "PACIFICO SALUD",
+    "pageSize": 10,
+    "pageStartIndex": 0,
+    "sort": [
+      {
+        "field": "descripcion",
+        "direction": "asc"
+      }
+    ]
+  }'
+2. Obtener Sucursal por Código
+bashcurl -X GET \
+  'http://localhost:3000/api/v1/sucursales/SUC001' \
+  -H 'Accept: application/json'
+3. Obtener Sucursales por Proveedor
+bashcurl -X GET \
+  'http://localhost:3000/api/v1/proveedores/10001/sucursales' \
+  -H 'Accept: application/json'
+Endpoints de Compañías de Seguros
+1. Obtener Todas las Compañías de Seguros
+bashcurl -X GET \
+  'http://localhost:3000/api/v1/companiaseguros' \
+  -H 'Accept: application/json'
+2. Obtener Compañía de Seguros por ID
+bashcurl -X GET \
+  'http://localhost:3000/api/v1/companiaseguros/1' \
+  -H 'Accept: application/json'
+Endpoints de Tipos de Proveedor
+bashcurl -X GET \
+  'http://localhost:3000/api/v1/tipos-proveedor' \
+  -H 'Accept: application/json'
+Endpoints de Roles
+bashcurl -X GET \
+  'http://localhost:3000/api/v1/roles' \
+  -H 'Accept: application/json'
+Prueba de Manejo de Errores
+Petición con ID Inexistente
+bashcurl -X GET \
+  'http://localhost:3000/api/v1/proveedores/99999' \
+  -H 'Accept: application/json'
+Petición con Parámetros Inválidos
+bashcurl -X POST \
+  'http://localhost:3000/api/v1/proveedores/buscar' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -d '{
+    "estado": "ESTADO_INVALIDO",
+    "pageSize": -1
+  }'
+Estos comandos curl están diseñados para probar las diferentes funcionalidades de la API, incluyendo búsquedas con filtros, obtención de datos específicos y manejo de errores. Puedes modificarlos según las necesidades específicas de tu entorno de desarrollo.
+
 */
