@@ -548,4 +548,60 @@ En tu vm
 ?
 https://dl.pstmn.io/download/version/11.7.0/win64
 
+
+# POST /sucursal/search
+curl -X POST "http://localhost:3000/sucursal/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "codigoProveedor": "10001",
+    "estado": "V",
+    "pageSize": 20,
+    "pageStartIndex": 0,
+    "sort": [
+      {
+        "field": "descripcion",
+        "direction": "asc"
+      }
+    ]
+  }'
+2. Búsqueda por Múltiples Proveedores
+bash# POST /sucursal/search - Múltiples proveedores
+curl -X POST "http://localhost:3000/sucursal/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ruc": [
+      "20100070970",
+      "20507264108",
+      "20332970411"
+    ],
+    "estado": "V",
+    "eps": "PACIFICO SALUD",
+    "pageSize": 50
+  }'
+3. Búsqueda por Código IPRESS
+bash# POST /sucursal/search - Por IPRESS
+curl -X POST "http://localhost:3000/sucursal/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "codIpress": "CSP-SURCO",
+    "estado": "V",
+    "indicadorPrincipalSucursal": "P",
+    "pageSize": 10
+  }'
+Controlador /sucursales (sucursales.controller.ts)
+4. Health Check
+bash# GET /sucursales/health
+curl -X GET "http://localhost:3000/sucursales/health"
+5. Listar Sucursales (Endpoint Principal)
+bash# POST /sucursales - Búsqueda principal
+curl -X POST "http://localhost:3000/sucursales" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "codigoProveedor": "10001",
+    "estado": "V",
+    "indicadorPrincipalSucursal": "P",
+    "pageSize": 20,
+    "pageStartIndex": 0
+  }'
+
 */
