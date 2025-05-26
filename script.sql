@@ -637,6 +637,18 @@ CREATE TABLE [convenio].[DiagnosticoBeneficio](
 	[fecUpdate] [datetime] NULL
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
+ // Mapeo de nombres de campos del DTO a nombres de columnas en la consulta
+        const fieldMapping = {
+            'codBeneficio': 'b.codigo',
+            'nombreBeneficio': 'b.desResumida',
+            'descripcionBeneficio': 'b.descripcion',
+            'codTipoCobertura': 'tc.codigo',
+            'nombreTipoCobertura': 'tc.descripcionTipo',
+            'codSubTipoCobertura': 'stc.codigo',
+            'nombreSubTipoCobertura': 'stc.descripcionSubTipo',
+            'grupoBeneficio': 'b.codGrupoBeneficio',
+            'estadoBeneficio': 'b.estRegistro'
+        };
 
  */
  */
