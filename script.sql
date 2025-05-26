@@ -493,5 +493,150 @@ curl --location --request POST 'http://localhost:3000/v1.0.0/beneficios/diagnost
       }
     ]
 }'
+
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [convenio].[Mae_Beneficio](
+	[idBeneficio] [nvarchar](max) NULL,
+	[idGrupoBeneficio] [nvarchar](max) NULL,
+	[idTipoCobertura] [nvarchar](max) NULL,
+	[idSubtipoCobertura] [nvarchar](max) NULL,
+	[codBeneficio] [nvarchar](max) NULL,
+	[descripcion] [nvarchar](max) NULL,
+	[desResumida] [nvarchar](max) NULL,
+	[codGrupoBeneficio] [nvarchar](max) NULL,
+	[codCobertura] [nvarchar](max) NULL,
+	[subtipoCobert] [nvarchar](max) NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[codSistema] [nvarchar](max) NULL,
+	[compania] [nvarchar](max) NULL,
+	[codUsuarioCreadorSistema] [nvarchar](max) NULL,
+	[fecCreacionSistema] [datetime] NULL,
+	[codUsuarioUpdateSistema] [nvarchar](max) NULL,
+	[fecUpdateSistema] [datetime] NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[fecCreacion] [datetime] NULL,
+	[codUsuarioUpdate] [nvarchar](max) NULL,
+	[fecUpdate] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [convenio].[Mae_SubtipoCobertura](
+	[idSubtipoCobertura] [nvarchar](max) NULL,
+	[idTipoCobertura] [nvarchar](max) NULL,
+	[codCobertura] [nvarchar](max) NULL,
+	[subtipoCobert] [nvarchar](max) NULL,
+	[descripcionSubTipo] [nvarchar](max) NULL,
+	[codDatoDetalle] [nvarchar](max) NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[fecCreacion] [datetime] NULL,
+	[codUsuarioUpdate] [nvarchar](max) NULL,
+	[fecUpdate] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [convenio].[Mae_BeneficioEPS](
+	[idBeneficioEps] [nvarchar](max) NULL,
+	[idBeneficio] [nvarchar](max) NULL,
+	[codBeneficio] [nvarchar](max) NULL,
+	[tipoGastoPrestacion] [nvarchar](max) NULL,
+	[indRequiereCartaGarantia] [nvarchar](max) NULL,
+	[indBeneficioAdicional] [nvarchar](max) NULL,
+	[indBeneficioPrincipal] [nvarchar](max) NULL,
+	[indProcEspeciales] [nvarchar](max) NULL,
+	[tipoPEAS] [nvarchar](max) NULL,
+	[indBeneficioComun] [nvarchar](max) NULL,
+	[codGrupoServicio] [int] NULL,
+	[indMostrarCG] [nvarchar](max) NULL,
+	[codSistema] [nvarchar](max) NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[codUsuarioCreadorSistema] [nvarchar](max) NULL,
+	[fecCreacionSistema] [datetime] NULL,
+	[codUsuarioUpdateSistema] [nvarchar](max) NULL,
+	[fecUpdateSistema] [datetime] NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[fecCreacion] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [convenio].[Mae_TipoCobertura](
+	[idTipoCobertura] [nvarchar](max) NULL,
+	[codCobertura] [nvarchar](max) NULL,
+	[descripcionTipo] [nvarchar](max) NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[fecCreacion] [datetime] NULL,
+	[codUsuarioUpdate] [nvarchar](max) NULL,
+	[fecUpdate] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [convenio].[Diagnostico](
+	[idDiagnostico] [nvarchar](max) NULL,
+	[codDiagnostico] [nvarchar](max) NULL,
+	[descripcionDiagnostico] [nvarchar](max) NULL,
+	[desTipDiagnostico] [nvarchar](max) NULL,
+	[codGrupoDiagnostico] [nvarchar](max) NULL,
+	[nivelDiagnostico] [nvarchar](max) NULL,
+	[codFrecuenciaDiagnostico] [int] NULL,
+	[indBeneficioCompartido] [nvarchar](max) NULL,
+	[indRequiereCartaGarantia] [nvarchar](max) NULL,
+	[indBeneficioExclusivo] [nvarchar](max) NULL,
+	[tipoPEAS] [nvarchar](max) NULL,
+	[numVersion] [int] NULL,
+	[sexoExclusivo] [nvarchar](max) NULL,
+	[indDiagnosticoNoRepetible] [int] NULL,
+	[codSistema] [nvarchar](max) NULL,
+	[fecStatus] [datetime] NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[codUsuarioCreadorSistema] [nvarchar](max) NULL,
+	[fecCreacionSistema] [datetime] NULL,
+	[codUsuarioUpdateSistema] [nvarchar](max) NULL,
+	[fecUpdateSistema] [datetime] NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[fecCreacion] [datetime] NULL,
+	[codUsuarioUpdate] [nvarchar](max) NULL,
+	[fecUpdate] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [convenio].[DiagnosticoBeneficio](
+	[idDiagnosticoBeneficio] [nvarchar](max) NULL,
+	[idDiagnostico] [nvarchar](max) NULL,
+	[idBeneficio] [nvarchar](max) NULL,
+	[codDiagnostico] [nvarchar](max) NULL,
+	[codBeneficio] [nvarchar](max) NULL,
+	[codSistema] [nvarchar](max) NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[codUsuarioCreadorSistema] [nvarchar](max) NULL,
+	[fecCreacionsSistema] [datetime] NULL,
+	[codUsuarioUpdateSistema] [nvarchar](max) NULL,
+	[fecUpdateSistema] [datetime] NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[fecCreacion] [datetime] NULL,
+	[codUsuarioUpdate] [nvarchar](max) NULL,
+	[fecUpdate] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
  */
  */
