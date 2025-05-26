@@ -443,5 +443,55 @@ pids
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
+curl --location --request POST 'http://localhost:3000/v1.0.0/beneficios' \
+--header 'ocp-apim-subscription-key: <TU_CLAVE_DE_SUSCRIPCION>' \
+--header 'X-Correlation-Id: <TU_CORRELATION_ID>' \
+--header 'X-Request-Id: <TU_REQUEST_ID>' \
+--header 'nombreAplicacion: <NOMBRE_APLICACION>' \
+--header 'procesoNegocio: <PROCESO_NEGOCIO>' \
+--header 'usuarioAplicacion: <USUARIO_APLICACION>' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "filtroxCompania": "EPS",
+    "filtroxSistema": "SALUD",
+    "filtroxCodBeneficio": [],
+    "filtroxIdBeneficio": [],
+    "filtroxCoTipoCobertura": "TC001",
+    "filtroxCodSubTipoCobertura": "STC001",
+    "filtroxGrupoBeneficio": "GB001",
+    "filtroxEstadoBeneficio": "ACTIVO",
+    "pageSize": 10,
+    "pageStartIndex": 0,
+    "sort": [
+      {
+        "field": "codBeneficio",
+        "direction": "asc"
+      }
+    ]
+}'
 
+curl --location --request POST 'http://localhost:3000/v1.0.0/beneficios/diagnosticos' \
+--header 'ocp-apim-subscription-key: <TU_CLAVE_DE_SUSCRIPCION>' \
+--header 'X-Correlation-Id: <TU_CORRELATION_ID>' \
+--header 'X-Request-Id: <TU_REQUEST_ID>' \
+--header 'nombreAplicacion: <NOMBRE_APLICACION>' \
+--header 'procesoNegocio: <PROCESO_NEGOCIO>' \
+--header 'usuarioAplicacion: <USUARIO_APLICACION>' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "filtroxCompania": "EPS",
+    "filtroxSistema": "SALUD",
+    "filtroxCodBeneficio": [],
+    "filtroxIdBeneficio": [],
+    "filtroxEstadoBeneficio": "ACTIVO",
+    "pageSize": 10,
+    "pageStartIndex": 0,
+    "sort": [
+      {
+        "field": "codDiagnostico",
+        "direction": "asc"
+      }
+    ]
+}'
+ */
  */
