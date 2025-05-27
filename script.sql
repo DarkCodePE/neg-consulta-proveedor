@@ -604,4 +604,261 @@ curl -X POST "http://localhost:3000/sucursales" \
     "pageStartIndex": 0
   }'
 
+# =============================================================================
+# COMANDOS cURL PARA PROBAR TODOS LOS ENDPOINTS
+# =============================================================================
+
+# Variables de configuración (ajustar según tu entorno)
+BASE_URL="http://localhost:3000"  # Cambiar por tu URL base
+SUBSCRIPTION_KEY="tu-subscription-key-aqui"
+
+# =============================================================================
+# 1. ENDPOINT: Consulta de Beneficios según filtros
+# POST /v1.0.0/beneficios
+# =============================================================================
+
+curl -X POST \
+  "$BASE_URL/v1.0.0/beneficios" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789012" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654321" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaBeneficios" \
+  -H "usuarioAplicacion: usuario.test" \
+  -d '{
+    "filtroxCompania": "20002",
+    "filtroxSistema": "NVS",
+    "filtroxCodBeneficio": ["102", "309"],
+    "filtroxIdBeneficio": [],
+    "filtroxCoTipoCobertura": "",
+    "filtroxCodSubTipoCobertura": "",
+    "filtroxGrupoBeneficio": "",
+    "filtroxEstadoBeneficio": "ACTIVO",
+    "paginacion": {
+      "numeroPagina": 1,
+      "registrosPorPagina": 10
+    },
+    "ordenamiento": [
+      {
+        "field": "codBeneficio",
+        "direction": "ASC"
+      }
+    ]
+  }'
+
+# =============================================================================
+# 2. ENDPOINT: Listado de diagnósticos por beneficio
+# POST /v1.0.0/beneficios/diagnosticos
+# =============================================================================
+
+curl -X POST \
+  "$BASE_URL/v1.0.0/beneficios/diagnosticos" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789013" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654322" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaDiagnosticos" \
+  -H "usuarioAplicacion: usuario.test" \
+  -d '{
+    "filtroxIdBeneficio": ["id-beneficio-1", "id-beneficio-2"],
+    "filtroxCodBeneficio": ["102", "309"],
+    "paginacion": {
+      "numeroPagina": 1,
+      "registrosPorPagina": 20
+    },
+    "ordenamiento": [
+      {
+        "field": "codDiagnostico",
+        "direction": "ASC"
+      }
+    ]
+  }'
+
+# =============================================================================
+# 3. ENDPOINT: Obtener todos los grupos de beneficio
+# GET /v1.0.0/grupos-beneficio
+# =============================================================================
+
+curl -X GET \
+  "$BASE_URL/v1.0.0/grupos-beneficio" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789014" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654323" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaGrupos" \
+  -H "usuarioAplicacion: usuario.test"
+
+# =============================================================================
+# 4. ENDPOINT: Consulta de diagnósticos según filtros
+# POST /v1.0.0/diagnosticos
+# =============================================================================
+
+curl -X POST \
+  "$BASE_URL/v1.0.0/diagnosticos" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789015" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654324" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaDiagnosticos" \
+  -H "usuarioAplicacion: usuario.test" \
+  -d '{
+    "filtroxCompania": "20002",
+    "filtroxSistema": "NVS",
+    "filtroxCodDiagnostico": ["A00", "B01"],
+    "filtroxIdDiagnostico": [],
+    "filtroxDescripcionDiagnostico": "",
+    "filtroxEstadoDiagnostico": "ACTIVO",
+    "paginacion": {
+      "numeroPagina": 1,
+      "registrosPorPagina": 15
+    },
+    "ordenamiento": [
+      {
+        "field": "codDiagnostico",
+        "direction": "ASC"
+      }
+    ]
+  }'
+
+# =============================================================================
+# 5. ENDPOINT: Consulta de beneficios por diagnóstico
+# POST /v1.0.0/diagnosticos/beneficios
+# =============================================================================
+
+curl -X POST \
+  "$BASE_URL/v1.0.0/diagnosticos/beneficios" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789016" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654325" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaBeneficiosPorDiagnostico" \
+  -H "usuarioAplicacion: usuario.test" \
+  -d '{
+    "filtroxIdDiagnostico": ["id-diagnostico-1", "id-diagnostico-2"],
+    "filtroxCodDiagnostico": ["A00", "B01"],
+    "paginacion": {
+      "numeroPagina": 1,
+      "registrosPorPagina": 25
+    },
+    "ordenamiento": [
+      {
+        "field": "codBeneficio",
+        "direction": "DESC"
+      }
+    ]
+  }'
+
+# =============================================================================
+# EJEMPLOS DE CASOS ESPECÍFICOS
+# =============================================================================
+
+# Caso 1: Buscar todos los beneficios (sin filtros)
+curl -X POST \
+  "$BASE_URL/v1.0.0/beneficios" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789017" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654326" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaTodos" \
+  -H "usuarioAplicacion: usuario.test" \
+  -d '{
+    "filtroxCompania": "",
+    "filtroxSistema": "",
+    "filtroxCodBeneficio": [],
+    "filtroxIdBeneficio": [],
+    "filtroxCoTipoCobertura": "",
+    "filtroxCodSubTipoCobertura": "",
+    "filtroxGrupoBeneficio": "",
+    "filtroxEstadoBeneficio": "",
+    "paginacion": {
+      "numeroPagina": 1,
+      "registrosPorPagina": 50
+    }
+  }'
+
+# Caso 2: Buscar beneficios con estado INACTIVO
+curl -X POST \
+  "$BASE_URL/v1.0.0/beneficios" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789018" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654327" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaInactivos" \
+  -H "usuarioAplicacion: usuario.test" \
+  -d '{
+    "filtroxCompania": "20002",
+    "filtroxSistema": "NVS",
+    "filtroxEstadoBeneficio": "INACTIVO",
+    "paginacion": {
+      "numeroPagina": 1,
+      "registrosPorPagina": 10
+    }
+  }'
+
+# Caso 3: Buscar con múltiples ordenamientos
+curl -X POST \
+  "$BASE_URL/v1.0.0/beneficios" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789019" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654328" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaOrdenada" \
+  -H "usuarioAplicacion: usuario.test" \
+  -d '{
+    "filtroxCompania": "20002",
+    "paginacion": {
+      "numeroPagina": 1,
+      "registrosPorPagina": 20
+    },
+    "ordenamiento": [
+      {
+        "field": "estadoBeneficio",
+        "direction": "DESC"
+      },
+      {
+        "field": "nombreBeneficio",
+        "direction": "ASC"
+      }
+    ]
+  }'
+
+# =============================================================================
+# SCRIPT PARA EJECUTAR TODAS LAS PRUEBAS
+# =============================================================================
+
+echo "=========================================="
+echo "🧪 EJECUTANDO PRUEBAS DE TODOS LOS ENDPOINTS"
+echo "=========================================="
+
+echo ""
+echo "1️⃣ Probando consulta de beneficios..."
+# Aquí iría el primer curl
+
+echo ""
+echo "2️⃣ Probando diagnósticos por beneficio..."
+# Aquí iría el segundo curl
+
+echo ""
+echo "3️⃣ Probando grupos de beneficio..."
+# Aquí iría el tercer curl
+
+echo ""
+echo "4️⃣ Probando consulta de diagnósticos..."
+# Aquí iría el cuarto curl
+
+echo ""
+echo "5️⃣ Probando beneficios por diagnóstico..."
+# Aquí iría el quinto curl
+
+echo ""
+echo "✅ Pruebas completadas!"
+
 */
