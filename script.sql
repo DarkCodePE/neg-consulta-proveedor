@@ -861,4 +861,80 @@ echo "5️⃣ Probando beneficios por diagnóstico..."
 echo ""
 echo "✅ Pruebas completadas!"
 
+
+Nest] 9284  - 05/27/2025, 1:44:14 PM     LOG [ListarDiagnosticosPorBeneficioUseCase] [12345678-1234-1234-1234-123456789013 req-87654321-4321-4321-4321-210987654322] [INICIO execute] Procesando solicitud: {"filtroxCompania":"","filtroxSistema":"","filtroxIdBeneficio":["01JT28V5W6KHE2N3DZDW3TH7TM"],"filtroxCodBeneficio":["R03"],"filtroxEstadoBeneficio":"ACTIVO","pageSize":10,"pageStartIndex":0,"sort":[{"field":"codBeneficio","direction":"asc"}]}  
+[Nest] 9284  - 05/27/2025, 1:44:14 PM     LOG [BeneficioRepositoryImpl] [INICIO findDiagnosticosByBeneficios] IDs: 01JT28V5W6KHE2N3DZDW3TH7TM
+query:
+                SELECT DISTINCT
+                    d.idDiagnostico,
+                    d.codDiagnostico,
+                    d.descripcion,
+                    d.desTipDiagnostico,
+                    d.codGrupoDiagnostico,
+                    d.estRegistro,
+                    d.codSistema,
+                    -- ⚠️ NOMBRE REAL DE LA COLUMNA
+                    d.fecCreacionsSistema,
+                    d.fecUpdateSistema,
+                    d.fecCreacion,
+                    d.fecUpdate,
+                    d.codDiagnosticoCie10,
+                    -- Incluir información del beneficio asociado
+                    db.idBeneficio,
+                    db.codBeneficio
+                FROM convenio.Diagnostico d
+                INNER JOIN convenio.DiagnosticoBeneficio db ON d.idDiagnostico = db.idDiagnostico
+                WHERE db.idBeneficio IN (@param0) AND db.estRegistro = 'V' AND d.estRegistro = @estadoDiagnostico
+                ORDER BY d.codDiagnostico, db.codBeneficio
+
+query failed: 
+                SELECT DISTINCT
+                    d.idDiagnostico,
+                    d.codDiagnostico,
+                    d.descripcion,
+                    d.desTipDiagnostico,
+                    d.codGrupoDiagnostico,
+                    d.estRegistro,
+                    d.codSistema,
+                    -- ⚠️ NOMBRE REAL DE LA COLUMNA
+                    d.fecCreacionsSistema,
+                    d.fecUpdateSistema,
+                    d.fecCreacion,
+                    d.fecUpdate,
+                    d.codDiagnosticoCie10,
+                    -- Incluir información del beneficio asociado
+                    db.idBeneficio,
+                    db.codBeneficio
+                FROM convenio.Diagnostico d
+                INNER JOIN convenio.DiagnosticoBeneficio db ON d.idDiagnostico = db.idDiagnostico
+                WHERE db.idBeneficio IN (@param0) AND db.estRegistro = 'V' AND d.estRegistro = @estadoDiagnostico
+                ORDER BY d.codDiagnostico, db.codBeneficio
+
+error: QueryFailedError: Error: Must declare the scalar variable "@param0".
+[Nest] 9284  - 05/27/2025, 1:44:14 PM   ERROR [BeneficioRepositoryImpl] Error en findDiagnosticosByBeneficios: Error: Must declare the scalar variable "@param0".
+QueryFailedError: Error: Must declare the scalar variable "@param0".
+    at <anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\typeorm\driver\src\driver\sqlserver\SqlServerQueryRunner.ts:277:30)
+    at C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\base\request.js:440:25  
+    at Request.userCallback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\tedious\request.js:492:15)
+    at Request.Request.callback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\request.ts:379:14)
+    at onEndOfMessage (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\connection.ts:3713:22)
+    at Object.onceWrapper (node:events:632:28)
+    at Parser.emit (node:events:518:28)
+    at Readable.<anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\token\token-stream-parser.ts:30:12)
+    at Readable.emit (node:events:518:28)
+    at endReadableNT (node:internal/streams/readable:1696:12)
+[Nest] 9284  - 05/27/2025, 1:44:14 PM   ERROR [ListarDiagnosticosPorBeneficioUseCase] [12345678-1234-1234-1234-123456789013 req-87654321-4321-4321-4321-210987654322] Error en execute: Error: Must declare the scalar variable "@param0".
+QueryFailedError: Error: Must declare the scalar variable "@param0".
+    at <anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\typeorm\driver\src\driver\sqlserver\SqlServerQueryRunner.ts:277:30)
+    at C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\base\request.js:440:25  
+    at Request.userCallback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\tedious\request.js:492:15)
+    at Request.Request.callback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\request.ts:379:14)
+    at onEndOfMessage (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\connection.ts:3713:22)
+    at Object.onceWrapper (node:events:632:28)
+    at Parser.emit (node:events:518:28)
+    at Readable.<anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\token\token-stream-parser.ts:30:12)
+    at Readable.emit (node:events:518:28)
+    at endReadableNT (node:internal/streams/readable:1696:12)
+{"level":"ERROR","time":"2025-05-27T18:44:14.511Z","traceId":"12345678-1234-1234-1234-123456789013","message":"Error al obtener diagn├│sticos por beneficio: Error: Must declare the scalar variable \"@param0\".","x-correlation-id":"12345678-1234-1234-1234-123456789013","x-request-id":"req-87654321-4321-4321-4321-210987654322","error":"QueryFailedError: Error: Must declare the scalar variable \"@param0\".\n    at <anonymous> (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\typeorm\\driver\\src\\driver\\sqlserver\\SqlServerQueryRunner.ts:277:30)\n    at C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\mssql\\lib\\base\\request.js:440:25\n    at Request.userCallback (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\mssql\\lib\\tedious\\request.js:492:15)\n    at Request.Request.callback (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\tedious\\src\\request.ts:379:14)\n    at onEndOfMessage (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\tedious\\src\\connection.ts:3713:22)\n    at Object.onceWrapper (node:events:632:28)\n    at Parser.emit (node:events:518:28)\n    at Readable.<anonymous> (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\tedious\\src\\token\\token-stream-parser.ts:30:12)\n    at Readable.emit (node:events:518:28)\n    at endReadableNT (node:internal/streams/readable:1696:12)"}
+{"level":30,"time":1748371454518,"pid":9284,"hostname":"vme1dessftvm02","req":{"method":"POST","url":"/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/beneficios/diagnosticos","X-Correlation-Id":"12345678-1234-1234-1234-123456789013","X-Request-Id":"req-87654321-4321-4321-4321-210987654322","usuarioAplicacion":"usuario.test","nombreAplicacion":"TestApp","procesoNegocio":"ConsultaDiagnosticos"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\pino-http\\logger.js:115:39)\n    at ServerResponse.onResponseComplete (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\pino-http\\logger.js:178:14)\n    at ServerResponse.emit (node:events:530:35)\n    at onFinish (node:_http_outgoing:1005:10)\n    at callback (node:internal/streams/writable:756:21)\n    at afterWrite (node:internal/streams/writable:701:5)\n    at afterWriteTick (node:internal/streams/writable:687:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)"},"responseTime":128,"msg":"request errored"
 */
