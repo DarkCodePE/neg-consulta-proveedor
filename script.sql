@@ -603,205 +603,531 @@ curl -X POST "http://localhost:3000/sucursales" \
     "pageSize": 20,
     "pageStartIndex": 0
   }'
-Comandos cURL para Servicios de Diagnósticos
-Variables de Entorno
-Configura estas variables antes de ejecutar los comandos:
-bash# URL base del servicio
-export BASE_URL="http://localhost:3000"
-# o para producción: export BASE_URL="https://{instancia-apim}"
 
-# Headers requeridos
-export APIM_KEY="tu-subscription-key-aqui"
-export CORRELATION_ID="$(uuidgen)"
-export REQUEST_ID="$(uuidgen)"
-export NOMBRE_APLICACION="TestApp"
-export PROCESO_NEGOCIO="ConsultaDiagnosticos"
-export USUARIO_APLICACION="usuario.prueba"
-1. Consulta de Diagnósticos
-Endpoint: POST /diagnosticos
-bashcurl -X POST \
-  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos" \
-  -H "Content-Type: application/json" \
-  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
-  -H "X-Correlation-Id: ${CORRELATION_ID}" \
-  -H "X-Request-Id: ${REQUEST_ID}" \
-  -H "nombreAplicacion: ${NOMBRE_APLICACION}" \
-  -H "procesoNegocio: ${PROCESO_NEGOCIO}" \
-  -H "usuarioAplicacion: ${USUARIO_APLICACION}" \
-  -d '{
-    "filtros": {
-      "codigoDiagnostico": "K25",
-      "descripcion": "ulcera",
-      "activo": true
-    },
-    "paginacion": {
-      "pagina": 1,
-      "tamanoPagina": 10
-    }
-  }' \
-  --verbose
-Ejemplo con filtros específicos:
-bashcurl -X POST \
-  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos" \
-  -H "Content-Type: application/json" \
-  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
-  -H "X-Correlation-Id: ${CORRELATION_ID}" \
-  -H "X-Request-Id: ${REQUEST_ID}" \
-  -H "nombreAplicacion: ${NOMBRE_APLICACION}" \
-  -H "procesoNegocio: ${PROCESO_NEGOCIO}" \
-  -H "usuarioAplicacion: ${USUARIO_APLICACION}" \
-  -d '{
-    "filtros": {
-      "codigoDiagnostico": "A00",
-      "descripcion": "colera",
-      "categoria": "INFECTOCONTAGIOSA",
-      "activo": true
-    },
-    "paginacion": {
-      "pagina": 1,
-      "tamanoPagina": 20
-    }
-  }' \
-  --verbose
-2. Consulta de Beneficios por Diagnóstico
-Endpoint: POST /diagnosticos/beneficios
-bashcurl -X POST \
-  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos/beneficios" \
-  -H "Content-Type: application/json" \
-  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
-  -H "X-Correlation-Id: ${CORRELATION_ID}" \
-  -H "X-Request-Id: ${REQUEST_ID}" \
-  -H "nombreAplicacion: ${NOMBRE_APLICACION}" \
-  -H "procesoNegocio: ${PROCESO_NEGOCIO}" \
-  -H "usuarioAplicacion: ${USUARIO_APLICACION}" \
-  -d '{
-    "codigosDiagnostico": ["K25", "K26", "K27"],
-    "tipoCobertura": "AMBULATORIO",
-    "codigoConvenio": "CONV001",
-    "activo": true
-  }' \
-  --verbose
-Ejemplo con múltiples diagnósticos:
-bashcurl -X POST \
-  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos/beneficios" \
-  -H "Content-Type: application/json" \
-  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
-  -H "X-Correlation-Id: ${CORRELATION_ID}" \
-  -H "X-Request-Id: ${REQUEST_ID}" \
-  -H "nombreAplicacion: ${NOMBRE_APLICACION}" \
-  -H "procesoNegocio: ${PROCESO_NEGOCIO}" \
-  -H "usuarioAplicacion: ${USUARIO_APLICACION}" \
-  -d '{
-    "codigosDiagnostico": ["A00", "A01", "A02", "A03"],
-    "tipoCobertura": "HOSPITALARIO",
-    "codigoConvenio": "CONV002",
-    "activo": true,
-    "incluirDetalles": true
-  }' \
-  --verbose
-Scripts de Prueba Automatizados
-Script para generar IDs únicos cada vez:
-bash#!/bin/bash
-# test-diagnosticos.sh
+# =============================================================================
+# COMANDOS cURL PARA PROBAR TODOS LOS ENDPOINTS
+# =============================================================================
 
-BASE_URL="http://localhost:3000"
-APIM_KEY="tu-subscription-key-aqui"
+# Variables de configuración (ajustar según tu entorno)
+BASE_URL="http://localhost:3000"  # Cambiar por tu URL base
+SUBSCRIPTION_KEY="tu-subscription-key-aqui"
 
-# Generar IDs únicos
-CORRELATION_ID=$(date +%s%N)
-REQUEST_ID=$(date +%s%N | tail -c 10)
+# =============================================================================
+# 1. ENDPOINT: Consulta de Beneficios según filtros
+# POST /v1.0.0/beneficios
+# =============================================================================
 
-echo "=== Probando servicio de diagnósticos ==="
-echo "Correlation ID: $CORRELATION_ID"
-echo "Request ID: $REQUEST_ID"
-
-# Prueba 1: Consulta de diagnósticos
-echo -e "\n1. Consultando diagnósticos..."
 curl -X POST \
-  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos" \
+  "$BASE_URL/v1.0.0/beneficios" \
   -H "Content-Type: application/json" \
-  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
-  -H "X-Correlation-Id: ${CORRELATION_ID}" \
-  -H "X-Request-Id: ${REQUEST_ID}" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789012" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654321" \
   -H "nombreAplicacion: TestApp" \
-  -H "procesoNegocio: ConsultaDiagnosticos" \
-  -H "usuarioAplicacion: usuario.prueba" \
+  -H "procesoNegocio: ConsultaBeneficios" \
+  -H "usuarioAplicacion: usuario.test" \
   -d '{
-    "filtros": {
-      "descripcion": "ulcera",
-      "activo": true
-    },
+    "filtroxCompania": "20002",
+    "filtroxSistema": "NVS",
+    "filtroxCodBeneficio": ["102", "309"],
+    "filtroxIdBeneficio": [],
+    "filtroxCoTipoCobertura": "",
+    "filtroxCodSubTipoCobertura": "",
+    "filtroxGrupoBeneficio": "",
+    "filtroxEstadoBeneficio": "ACTIVO",
     "paginacion": {
-      "pagina": 1,
-      "tamanoPagina": 5
-    }
-  }' | jq '.'
-
-echo -e "\n\n2. Consultando beneficios por diagnóstico..."
-# Prueba 2: Consulta de beneficios
-curl -X POST \
-  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos/beneficios" \
-  -H "Content-Type: application/json" \
-  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
-  -H "X-Correlation-Id: ${CORRELATION_ID}" \
-  -H "X-Request-Id: ${REQUEST_ID}" \
-  -H "nombreAplicacion: TestApp" \
-  -H "procesoNegocio: ConsultaDiagnosticos" \
-  -H "usuarioAplicacion: usuario.prueba" \
-  -d '{
-    "codigosDiagnostico": ["K25", "K26"],
-    "tipoCobertura": "AMBULATORIO",
-    "activo": true
-  }' | jq '.'
-Casos de Prueba para Errores
-1. Prueba de validación (400 Bad Request):
-bashcurl -X POST \
-  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos" \
-  -H "Content-Type: application/json" \
-  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
-  -H "X-Correlation-Id: ${CORRELATION_ID}" \
-  -H "X-Request-Id: ${REQUEST_ID}" \
-  -H "nombreAplicacion: ${NOMBRE_APLICACION}" \
-  -H "procesoNegocio: ${PROCESO_NEGOCIO}" \
-  -H "usuarioAplicacion: ${USUARIO_APLICACION}" \
-  -d '{
-    "filtros": {
-      "paginacion": {
-        "pagina": -1,
-        "tamanoPagina": 0
+      "numeroPagina": 1,
+      "registrosPorPagina": 10
+    },
+    "ordenamiento": [
+      {
+        "field": "codBeneficio",
+        "direction": "ASC"
       }
-    }
+    ]
   }'
-2. Prueba sin headers requeridos (400 Bad Request):
-bashcurl -X POST \
-  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "filtros": {
-      "descripcion": "test"
-    }
-  }'
-3. Prueba con datos no encontrados (404 Not Found):
-bashcurl -X POST \
-  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos/beneficios" \
-  -H "Content-Type: application/json" \
-  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
-  -H "X-Correlation-Id: ${CORRELATION_ID}" \
-  -H "X-Request-Id: ${REQUEST_ID}" \
-  -H "nombreAplicacion: ${NOMBRE_APLICACION}" \
-  -H "procesoNegocio: ${PROCESO_NEGOCIO}" \
-  -H "usuarioAplicacion: ${USUARIO_APLICACION}" \
-  -d '{
-    "codigosDiagnostico": ["INEXISTENTE999"],
-    "tipoCobertura": "AMBULATORIO",
-    "activo": true
-  }'
-Notas Importantes
 
-Reemplaza los valores: Actualiza BASE_URL, APIM_KEY y otros headers con valores reales.
-UUIDs únicos: Los X-Correlation-Id y X-Request-Id deben ser únicos para cada solicitud.
-Headers requeridos: Todos los headers mostrados son obligatorios según la definición de los controladores.
-Formato de respuesta: Las respuestas estarán en formato JSON. Usa | jq '.' para formatear la salida.
-Logs: Revisa los logs de la aplicación para ver la trazabilidad con los IDs de correlación.
-Documentación Swagger: Accede a {BASE_URL}/docs para ver la documentación interactiva de la API.
+# =============================================================================
+# 2. ENDPOINT: Listado de diagnósticos por beneficio
+# POST /v1.0.0/beneficios/diagnosticos
+# =============================================================================
+
+curl -X POST \
+  "$BASE_URL/v1.0.0/beneficios/diagnosticos" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789013" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654322" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaDiagnosticos" \
+  -H "usuarioAplicacion: usuario.test" \
+  -d '{
+    "filtroxIdBeneficio": ["id-beneficio-1", "id-beneficio-2"],
+    "filtroxCodBeneficio": ["102", "309"],
+    "paginacion": {
+      "numeroPagina": 1,
+      "registrosPorPagina": 20
+    },
+    "ordenamiento": [
+      {
+        "field": "codDiagnostico",
+        "direction": "ASC"
+      }
+    ]
+  }'
+
+# =============================================================================
+# 3. ENDPOINT: Obtener todos los grupos de beneficio
+# GET /v1.0.0/grupos-beneficio
+# =============================================================================
+
+curl -X GET \
+  "$BASE_URL/v1.0.0/grupos-beneficio" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789014" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654323" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaGrupos" \
+  -H "usuarioAplicacion: usuario.test"
+
+# =============================================================================
+# 4. ENDPOINT: Consulta de diagnósticos según filtros
+# POST /v1.0.0/diagnosticos
+# =============================================================================
+
+curl -X POST \
+  "$BASE_URL/v1.0.0/diagnosticos" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789015" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654324" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaDiagnosticos" \
+  -H "usuarioAplicacion: usuario.test" \
+  -d '{
+    "filtroxCompania": "20002",
+    "filtroxSistema": "NVS",
+    "filtroxCodDiagnostico": ["A00", "B01"],
+    "filtroxIdDiagnostico": [],
+    "filtroxDescripcionDiagnostico": "",
+    "filtroxEstadoDiagnostico": "ACTIVO",
+    "paginacion": {
+      "numeroPagina": 1,
+      "registrosPorPagina": 15
+    },
+    "ordenamiento": [
+      {
+        "field": "codDiagnostico",
+        "direction": "ASC"
+      }
+    ]
+  }'
+
+# =============================================================================
+# 5. ENDPOINT: Consulta de beneficios por diagnóstico
+# POST /v1.0.0/diagnosticos/beneficios
+# =============================================================================
+
+curl -X POST \
+  "$BASE_URL/v1.0.0/diagnosticos/beneficios" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789016" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654325" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaBeneficiosPorDiagnostico" \
+  -H "usuarioAplicacion: usuario.test" \
+  -d '{
+    "filtroxIdDiagnostico": ["id-diagnostico-1", "id-diagnostico-2"],
+    "filtroxCodDiagnostico": ["A00", "B01"],
+    "paginacion": {
+      "numeroPagina": 1,
+      "registrosPorPagina": 25
+    },
+    "ordenamiento": [
+      {
+        "field": "codBeneficio",
+        "direction": "DESC"
+      }
+    ]
+  }'
+
+# =============================================================================
+# EJEMPLOS DE CASOS ESPECÍFICOS
+# =============================================================================
+
+# Caso 1: Buscar todos los beneficios (sin filtros)
+curl -X POST \
+  "$BASE_URL/v1.0.0/beneficios" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789017" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654326" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaTodos" \
+  -H "usuarioAplicacion: usuario.test" \
+  -d '{
+    "filtroxCompania": "",
+    "filtroxSistema": "",
+    "filtroxCodBeneficio": [],
+    "filtroxIdBeneficio": [],
+    "filtroxCoTipoCobertura": "",
+    "filtroxCodSubTipoCobertura": "",
+    "filtroxGrupoBeneficio": "",
+    "filtroxEstadoBeneficio": "",
+    "paginacion": {
+      "numeroPagina": 1,
+      "registrosPorPagina": 50
+    }
+  }'
+
+# Caso 2: Buscar beneficios con estado INACTIVO
+curl -X POST \
+  "$BASE_URL/v1.0.0/beneficios" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789018" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654327" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaInactivos" \
+  -H "usuarioAplicacion: usuario.test" \
+  -d '{
+    "filtroxCompania": "20002",
+    "filtroxSistema": "NVS",
+    "filtroxEstadoBeneficio": "INACTIVO",
+    "paginacion": {
+      "numeroPagina": 1,
+      "registrosPorPagina": 10
+    }
+  }'
+
+# Caso 3: Buscar con múltiples ordenamientos
+curl -X POST \
+  "$BASE_URL/v1.0.0/beneficios" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: $SUBSCRIPTION_KEY" \
+  -H "X-Correlation-Id: 12345678-1234-1234-1234-123456789019" \
+  -H "X-Request-Id: req-87654321-4321-4321-4321-210987654328" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaOrdenada" \
+  -H "usuarioAplicacion: usuario.test" \
+  -d '{
+    "filtroxCompania": "20002",
+    "paginacion": {
+      "numeroPagina": 1,
+      "registrosPorPagina": 20
+    },
+    "ordenamiento": [
+      {
+        "field": "estadoBeneficio",
+        "direction": "DESC"
+      },
+      {
+        "field": "nombreBeneficio",
+        "direction": "ASC"
+      }
+    ]
+  }'
+
+# =============================================================================
+# SCRIPT PARA EJECUTAR TODAS LAS PRUEBAS
+# =============================================================================
+
+echo "=========================================="
+echo "🧪 EJECUTANDO PRUEBAS DE TODOS LOS ENDPOINTS"
+echo "=========================================="
+
+echo ""
+echo "1️⃣ Probando consulta de beneficios..."
+# Aquí iría el primer curl
+
+echo ""
+echo "2️⃣ Probando diagnósticos por beneficio..."
+# Aquí iría el segundo curl
+
+echo ""
+echo "3️⃣ Probando grupos de beneficio..."
+# Aquí iría el tercer curl
+
+echo ""
+echo "4️⃣ Probando consulta de diagnósticos..."
+# Aquí iría el cuarto curl
+
+echo ""
+echo "5️⃣ Probando beneficios por diagnóstico..."
+# Aquí iría el quinto curl
+
+echo ""
+echo "✅ Pruebas completadas!"
+
+
+Nest] 9284  - 05/27/2025, 1:44:14 PM     LOG [ListarDiagnosticosPorBeneficioUseCase] [12345678-1234-1234-1234-123456789013 req-87654321-4321-4321-4321-210987654322] [INICIO execute] Procesando solicitud: {"filtroxCompania":"","filtroxSistema":"","filtroxIdBeneficio":["01JT28V5W6KHE2N3DZDW3TH7TM"],"filtroxCodBeneficio":["R03"],"filtroxEstadoBeneficio":"ACTIVO","pageSize":10,"pageStartIndex":0,"sort":[{"field":"codBeneficio","direction":"asc"}]}  
+[Nest] 9284  - 05/27/2025, 1:44:14 PM     LOG [BeneficioRepositoryImpl] [INICIO findDiagnosticosByBeneficios] IDs: 01JT28V5W6KHE2N3DZDW3TH7TM
+query:
+                SELECT DISTINCT
+                    d.idDiagnostico,
+                    d.codDiagnostico,
+                    d.descripcion,
+                    d.desTipDiagnostico,
+                    d.codGrupoDiagnostico,
+                    d.estRegistro,
+                    d.codSistema,
+                    -- ⚠️ NOMBRE REAL DE LA COLUMNA
+                    d.fecCreacionsSistema,
+                    d.fecUpdateSistema,
+                    d.fecCreacion,
+                    d.fecUpdate,
+                    d.codDiagnosticoCie10,
+                    -- Incluir información del beneficio asociado
+                    db.idBeneficio,
+                    db.codBeneficio
+                FROM convenio.Diagnostico d
+                INNER JOIN convenio.DiagnosticoBeneficio db ON d.idDiagnostico = db.idDiagnostico
+                WHERE db.idBeneficio IN (@param0) AND db.estRegistro = 'V' AND d.estRegistro = @estadoDiagnostico
+                ORDER BY d.codDiagnostico, db.codBeneficio
+
+query failed: 
+                SELECT DISTINCT
+                    d.idDiagnostico,
+                    d.codDiagnostico,
+                    d.descripcion,
+                    d.desTipDiagnostico,
+                    d.codGrupoDiagnostico,
+                    d.estRegistro,
+                    d.codSistema,
+                    -- ⚠️ NOMBRE REAL DE LA COLUMNA
+                    d.fecCreacionsSistema,
+                    d.fecUpdateSistema,
+                    d.fecCreacion,
+                    d.fecUpdate,
+                    d.codDiagnosticoCie10,
+                    -- Incluir información del beneficio asociado
+                    db.idBeneficio,
+                    db.codBeneficio
+                FROM convenio.Diagnostico d
+                INNER JOIN convenio.DiagnosticoBeneficio db ON d.idDiagnostico = db.idDiagnostico
+                WHERE db.idBeneficio IN (@param0) AND db.estRegistro = 'V' AND d.estRegistro = @estadoDiagnostico
+                ORDER BY d.codDiagnostico, db.codBeneficio
+
+error: QueryFailedError: Error: Must declare the scalar variable "@param0".
+[Nest] 9284  - 05/27/2025, 1:44:14 PM   ERROR [BeneficioRepositoryImpl] Error en findDiagnosticosByBeneficios: Error: Must declare the scalar variable "@param0".
+QueryFailedError: Error: Must declare the scalar variable "@param0".
+    at <anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\typeorm\driver\src\driver\sqlserver\SqlServerQueryRunner.ts:277:30)
+    at C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\base\request.js:440:25  
+    at Request.userCallback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\tedious\request.js:492:15)
+    at Request.Request.callback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\request.ts:379:14)
+    at onEndOfMessage (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\connection.ts:3713:22)
+    at Object.onceWrapper (node:events:632:28)
+    at Parser.emit (node:events:518:28)
+    at Readable.<anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\token\token-stream-parser.ts:30:12)
+    at Readable.emit (node:events:518:28)
+    at endReadableNT (node:internal/streams/readable:1696:12)
+[Nest] 9284  - 05/27/2025, 1:44:14 PM   ERROR [ListarDiagnosticosPorBeneficioUseCase] [12345678-1234-1234-1234-123456789013 req-87654321-4321-4321-4321-210987654322] Error en execute: Error: Must declare the scalar variable "@param0".
+QueryFailedError: Error: Must declare the scalar variable "@param0".
+    at <anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\typeorm\driver\src\driver\sqlserver\SqlServerQueryRunner.ts:277:30)
+    at C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\base\request.js:440:25  
+    at Request.userCallback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\tedious\request.js:492:15)
+    at Request.Request.callback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\request.ts:379:14)
+    at onEndOfMessage (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\connection.ts:3713:22)
+    at Object.onceWrapper (node:events:632:28)
+    at Parser.emit (node:events:518:28)
+    at Readable.<anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\token\token-stream-parser.ts:30:12)
+    at Readable.emit (node:events:518:28)
+    at endReadableNT (node:internal/streams/readable:1696:12)
+{"level":"ERROR","time":"2025-05-27T18:44:14.511Z","traceId":"12345678-1234-1234-1234-123456789013","message":"Error al obtener diagn├│sticos por beneficio: Error: Must declare the scalar variable \"@param0\".","x-correlation-id":"12345678-1234-1234-1234-123456789013","x-request-id":"req-87654321-4321-4321-4321-210987654322","error":"QueryFailedError: Error: Must declare the scalar variable \"@param0\".\n    at <anonymous> (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\typeorm\\driver\\src\\driver\\sqlserver\\SqlServerQueryRunner.ts:277:30)\n    at C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\mssql\\lib\\base\\request.js:440:25\n    at Request.userCallback (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\mssql\\lib\\tedious\\request.js:492:15)\n    at Request.Request.callback (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\tedious\\src\\request.ts:379:14)\n    at onEndOfMessage (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\tedious\\src\\connection.ts:3713:22)\n    at Object.onceWrapper (node:events:632:28)\n    at Parser.emit (node:events:518:28)\n    at Readable.<anonymous> (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\tedious\\src\\token\\token-stream-parser.ts:30:12)\n    at Readable.emit (node:events:518:28)\n    at endReadableNT (node:internal/streams/readable:1696:12)"}
+{"level":30,"time":1748371454518,"pid":9284,"hostname":"vme1dessftvm02","req":{"method":"POST","url":"/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/beneficios/diagnosticos","X-Correlation-Id":"12345678-1234-1234-1234-123456789013","X-Request-Id":"req-87654321-4321-4321-4321-210987654322","usuarioAplicacion":"usuario.test","nombreAplicacion":"TestApp","procesoNegocio":"ConsultaDiagnosticos"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\pino-http\\logger.js:115:39)\n    at ServerResponse.onResponseComplete (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\pino-http\\logger.js:178:14)\n    at ServerResponse.emit (node:events:530:35)\n    at onFinish (node:_http_outgoing:1005:10)\n    at callback (node:internal/streams/writable:756:21)\n    at afterWrite (node:internal/streams/writable:701:5)\n    at afterWriteTick (node:internal/streams/writable:687:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)"},"responseTime":128,"msg":"request errored"
+********************************************************************
+21-210987654322] [INICIO execute] Procesando solicitud: {"filtroxCompania":"","filtroxSistema":"","filtroxIdBeneficio":["01JT28V5W6KHE2N3DZDW3TH7TM"],"filtroxCodBeneficio":["R03"],"filtroxEstadoBeneficio":"ACTIVO","pageSize":10,"pageStartIndex":0,"sort":[{"field":"codBeneficio","direction":"asc"}]} 
+[Nest] 29288  - 05/27/2025, 1:52:32 PM     LOG [BeneficioRepositoryImpl] [INICIO findDiagnosticosByBeneficios] IDs: 01JT28V5W6KHE2N3DZDW3TH7TM        
+[Nest] 29288  - 05/27/2025, 1:52:32 PM     LOG [BeneficioRepositoryImpl] Query:
+            SELECT DISTINCT
+                d.idDiagnostico,
+                d.codDiagnostico,
+                d.descripcion,
+                d.desTipDiagnostico,
+                d.codGrupoDiagnostico,
+                d.estRegistro,
+                d.codSistema,
+                d.fecCreacionsSistema,
+                d.fecUpdateSistema,
+                d.fecCreacion,
+                d.fecUpdate,
+                --d.codDiagnosticoCie10,
+                db.idBeneficio,
+                db.codBeneficio
+            FROM convenio.Diagnostico d
+            INNER JOIN convenio.DiagnosticoBeneficio db ON d.idDiagnostico = db.idDiagnostico
+            WHERE db.idBeneficio IN ($1) AND db.estRegistro = 'V' AND d.estRegistro = $2
+            ORDER BY d.codDiagnostico, db.codBeneficio
+
+[Nest] 29288  - 05/27/2025, 1:52:32 PM     LOG [BeneficioRepositoryImpl] Parameters: ["01JT28V5W6KHE2N3DZDW3TH7TM","V"]
+query: 
+            SELECT DISTINCT
+                d.idDiagnostico,
+                d.codDiagnostico,
+                d.descripcion,
+                d.desTipDiagnostico,
+                d.codGrupoDiagnostico,
+                d.estRegistro,
+                d.codSistema,
+                d.fecCreacionsSistema,
+                d.fecUpdateSistema,
+                d.fecCreacion,
+                d.fecUpdate,
+                --d.codDiagnosticoCie10,
+                db.idBeneficio,
+                db.codBeneficio
+            FROM convenio.Diagnostico d
+            INNER JOIN convenio.DiagnosticoBeneficio db ON d.idDiagnostico = db.idDiagnostico
+            WHERE db.idBeneficio IN ($1) AND db.estRegistro = 'V' AND d.estRegistro = $2
+            ORDER BY d.codDiagnostico, db.codBeneficio
+         -- PARAMETERS: ["01JT28V5W6KHE2N3DZDW3TH7TM","V"]
+query failed: 
+            SELECT DISTINCT
+                d.idDiagnostico,
+                d.codDiagnostico,
+                d.descripcion,
+                d.desTipDiagnostico,
+                d.codGrupoDiagnostico,
+                d.estRegistro,
+                d.codSistema,
+                d.fecCreacionsSistema,
+                d.fecUpdateSistema,
+                d.fecCreacion,
+                d.fecUpdate,
+                --d.codDiagnosticoCie10,
+                db.idBeneficio,
+                db.codBeneficio
+            FROM convenio.Diagnostico d
+            INNER JOIN convenio.DiagnosticoBeneficio db ON d.idDiagnostico = db.idDiagnostico
+            WHERE db.idBeneficio IN ($1) AND db.estRegistro = 'V' AND d.estRegistro = $2
+            ORDER BY d.codDiagnostico, db.codBeneficio
+         -- PARAMETERS: ["01JT28V5W6KHE2N3DZDW3TH7TM","V"]
+error: QueryFailedError: Error: Invalid column name 'fecCreacionsSistema'.
+[Nest] 29288  - 05/27/2025, 1:52:32 PM   ERROR [BeneficioRepositoryImpl] Error en findDiagnosticosByBeneficios: Error: Invalid column name 'fecCreacionsSistema'.
+QueryFailedError: Error: Invalid column name 'fecCreacionsSistema'.
+    at <anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\typeorm\driver\src\driver\sqlserver\SqlServerQueryRunner.ts:277:30)
+    at C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\base\request.js:440:25  
+    at Request.userCallback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\tedious\request.js:492:15)
+    at Request.Request.callback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\request.ts:379:14)
+    at onEndOfMessage (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\connection.ts:3713:22)
+    at Object.onceWrapper (node:events:632:28)
+    at Parser.emit (node:events:518:28)
+    at Readable.<anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\token\token-stream-parser.ts:30:12)
+    at Readable.emit (node:events:518:28)
+    at endReadableNT (node:internal/streams/readable:1696:12)
+[Nest] 29288  - 05/27/2025, 1:52:32 PM   ERROR [ListarDiagnosticosPorBeneficioUseCase] [12345678-1234-1234-1234-123456789013 req-87654321-4321-4321-4321-210987654322] Error en execute: Error: Invalid column name 'fecCreacionsSistema'.
+QueryFailedError: Error: Invalid column name 'fecCreacionsSistema'.
+    at <anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\typeorm\driver\src\driver\sqlserver\SqlServerQueryRunner.ts:277:30)
+    at C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\base\request.js:440:25  
+    at Request.userCallback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\tedious\request.js:492:15)
+    at Request.Request.callback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\request.ts:379:14)
+    at onEndOfMessage (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\connection.ts:3713:22)
+    at Object.onceWrapper (node:events:632:28)
+    at Parser.emit (node:events:518:28)
+    at Readable.<anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\token\token-stream-parser.ts:30:12)
+    at Readable.emit (node:events:518:28)
+    at endReadableNT (node:internal/streams/readable:1696:12)
+{"level":"ERROR","time":"2025-05-27T18:52:32.763Z","traceId":"12345678-1234-1234-1234-123456789013","message":"Error al obtener diagn├│sticos por beneficio: Error: Invalid column name 'fecCreacionsSistema'.","x-correlation-id":"12345678-1234-1234-1234-123456789013","x-request-id":"req-87654321-4321-4321-4321-210987654322","error":"QueryFailedError: Error: Invalid column name 'fecCreacionsSistema'.\n    at <anonymous> (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\typeorm\\driver\\src\\driver\\sqlserver\\SqlServerQueryRunner.ts:277:30)\n    at C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\mssql\\lib\\base\\request.js:440:25\n    at Request.userCallback (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\mssql\\lib\\tedious\\request.js:492:15)\n    at Request.Request.callback (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\tedious\\src\\request.ts:379:14)\n    at onEndOfMessage (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\tedious\\src\\connection.ts:3713:22)\n    at Object.onceWrapper (node:events:632:28)\n    at Parser.emit (node:events:518:28)\n    at Readable.<anonymous> (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\tedious\\src\\token\\token-stream-parser.ts:30:12)\n    at Readable.emit (node:events:518:28)\n    at endReadableNT (node:internal/streams/readable:1696:12)"}
+{"level":30,"time":1748371952771,"pid":29288,"hostname":"vme1dessftvm02","req":{"method":"POST","url":"/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/beneficios/diagnosticos","X-Correlation-Id":"12345678-1234-1234-1234-123456789013","X-Request-Id":"req-87654321-4321-4321-4321-210987654322","usuarioAplicacion":"usuario.test","nombreAplicacion":"TestApp","procesoNegocio":"ConsultaDiagnosticos"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\pino-http\\logger.js:115:39)\n    at ServerResponse.onResponseComplete (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\pino-http\\logger.js:178:14)\n    at ServerResponse.emit (node:events:530:35)\n    at onFinish (node:_http_outgoing:1005:10)\n    at callback (node:internal/streams/writable:756:21)\n    at afterWrite (node:internal/streams/writable:701:5)\n    at afterWriteTick (node:internal/streams/writable:687:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)"},"responseTime":153,"msg":"request errored"}
+^C^C^CTerminate batch job (Y/N)?
+
+
+
+
+**************************************************
+Nest] 6320  - 05/27/2025, 3:54:36 PM     LOG [ListarDiagnosticosPorBeneficioUseCase] [12345678-1234-1234-1234-123456789013 req-87654321-4321-4321-4321-210987654322] [INICIO execute] Procesando solicitud: {"filtroxCompania":"","filtroxSistema":"","filtroxIdBeneficio":["01JT28V5W6KHE2N3DZDW3TH7TM"],"filtroxCodBeneficio":["R03"],"filtroxEstadoBeneficio":"ACTIVO","pageSize":10,"pageStartIndex":0,"sort":[{"field":"codBeneficio","direction":"asc"}]}  
+[Nest] 6320  - 05/27/2025, 3:54:36 PM     LOG [BeneficioRepositoryImpl] [INICIO findDiagnosticosByBeneficios] IDs: 01JT28V5W6KHE2N3DZDW3TH7TM
+[Nest] 6320  - 05/27/2025, 3:54:36 PM     LOG [BeneficioRepositoryImpl] Query:
+            SELECT DISTINCT
+                d.idDiagnostico,
+                d.codDiagnostico,
+                d.descripcionDiagnostico,
+                d.desTipDiagnostico,
+                d.codGrupoDiagnostico,
+                d.estRegistro,
+                d.codSistema,
+                d.fecCreacionSistema,
+                d.fecUpdateSistema,
+                d.fecCreacion,
+                d.fecUpdate,
+                --d.codDiagnosticoCie10,
+                db.idBeneficio,
+                db.codBeneficio
+            FROM convenio.Diagnostico d
+            INNER JOIN convenio.DiagnosticoBeneficio db ON d.idDiagnostico = db.idDiagnostico
+            WHERE db.idBeneficio IN ($1) AND db.estRegistro = 'V' AND d.estRegistro = $2
+            ORDER BY d.codDiagnostico, db.codBeneficio
+
+[Nest] 6320  - 05/27/2025, 3:54:36 PM     LOG [BeneficioRepositoryImpl] Parameters: ["01JT28V5W6KHE2N3DZDW3TH7TM","V"]
+query: 
+            SELECT DISTINCT
+                d.idDiagnostico,
+                d.codDiagnostico,
+                d.descripcionDiagnostico,
+                d.desTipDiagnostico,
+                d.codGrupoDiagnostico,
+                d.estRegistro,
+                d.codSistema,
+                d.fecCreacionSistema,
+                d.fecUpdateSistema,
+                d.fecCreacion,
+                d.fecUpdate,
+                --d.codDiagnosticoCie10,
+                db.idBeneficio,
+                db.codBeneficio
+            FROM convenio.Diagnostico d
+            INNER JOIN convenio.DiagnosticoBeneficio db ON d.idDiagnostico = db.idDiagnostico
+            WHERE db.idBeneficio IN ($1) AND db.estRegistro = 'V' AND d.estRegistro = $2
+            ORDER BY d.codDiagnostico, db.codBeneficio
+         -- PARAMETERS: ["01JT28V5W6KHE2N3DZDW3TH7TM","V"]
+query failed: 
+            SELECT DISTINCT
+                d.idDiagnostico,
+                d.codDiagnostico,
+                d.descripcionDiagnostico,
+                d.desTipDiagnostico,
+                d.codGrupoDiagnostico,
+                d.estRegistro,
+                d.codSistema,
+                d.fecCreacionSistema,
+                d.fecUpdateSistema,
+                d.fecCreacion,
+                d.fecUpdate,
+                --d.codDiagnosticoCie10,
+                db.idBeneficio,
+                db.codBeneficio
+            FROM convenio.Diagnostico d
+            INNER JOIN convenio.DiagnosticoBeneficio db ON d.idDiagnostico = db.idDiagnostico
+            WHERE db.idBeneficio IN ($1) AND db.estRegistro = 'V' AND d.estRegistro = $2
+            ORDER BY d.codDiagnostico, db.codBeneficio
+         -- PARAMETERS: ["01JT28V5W6KHE2N3DZDW3TH7TM","V"]
+error: QueryFailedError: Error: Cannot convert a char value to money. The char value has incorrect syntax.
+[Nest] 6320  - 05/27/2025, 3:54:45 PM   ERROR [BeneficioRepositoryImpl] Error en findDiagnosticosByBeneficios: Error: Cannot convert a char value to money. The char value has incorrect syntax.
+QueryFailedError: Error: Cannot convert a char value to money. The char value has incorrect syntax.
+    at <anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\typeorm\driver\src\driver\sqlserver\SqlServerQueryRunner.ts:277:30)
+    at C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\base\request.js:440:25  
+    at Request.userCallback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\tedious\request.js:492:15)
+    at Request.Request.callback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\request.ts:379:14)
+    at onEndOfMessage (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\connection.ts:3713:22)
+    at Object.onceWrapper (node:events:632:28)
+    at Parser.emit (node:events:518:28)
+    at Readable.<anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\token\token-stream-parser.ts:30:12)
+    at Readable.emit (node:events:518:28)
+    at endReadableNT (node:internal/streams/readable:1696:12)
+[Nest] 6320  - 05/27/2025, 3:54:45 PM   ERROR [ListarDiagnosticosPorBeneficioUseCase] [12345678-1234-1234-1234-123456789013 req-87654321-4321-4321-4321-210987654322] Error en execute: Error: Cannot convert a char value to money. The char value has incorrect syntax.
+QueryFailedError: Error: Cannot convert a char value to money. The char value has incorrect syntax.
+    at <anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\typeorm\driver\src\driver\sqlserver\SqlServerQueryRunner.ts:277:30)
+    at C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\base\request.js:440:25  
+    at Request.userCallback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\mssql\lib\tedious\request.js:492:15)
+    at Request.Request.callback (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\request.ts:379:14)
+    at onEndOfMessage (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\connection.ts:3713:22)
+    at Object.onceWrapper (node:events:632:28)
+    at Parser.emit (node:events:518:28)
+    at Readable.<anonymous> (C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods-consultaCovenios\ne-ods-consultaConvenio\node_modules\tedious\src\token\token-stream-parser.ts:30:12)
+    at Readable.emit (node:events:518:28)
+    at endReadableNT (node:internal/streams/readable:1696:12)
+{"level":"ERROR","time":"2025-05-27T20:54:45.867Z","traceId":"12345678-1234-1234-1234-123456789013","message":"Error al obtener diagn├│sticos por beneficio: Error: Cannot convert a char value to money. The char value has incorrect syntax.","x-correlation-id":"12345678-1234-1234-1234-123456789013","x-request-id":"req-87654321-4321-4321-4321-210987654322","error":"QueryFailedError: Error: Cannot convert a char value to money. The char value has incorrect syntax.\n    at <anonymous> (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\typeorm\\driver\\src\\driver\\sqlserver\\SqlServerQueryRunner.ts:277:30)\n    at C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\mssql\\lib\\base\\request.js:440:25\n    at Request.userCallback (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\mssql\\lib\\tedious\\request.js:492:15)\n    at Request.Request.callback (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\tedious\\src\\request.ts:379:14)\n    at onEndOfMessage (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\tedious\\src\\connection.ts:3713:22)\n    at Object.onceWrapper (node:events:632:28)\n    at Parser.emit (node:events:518:28)\n    at Readable.<anonymous> (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\tedious\\src\\token\\token-stream-parser.ts:30:12)\n    at Readable.emit (node:events:518:28)\n    at endReadableNT (node:internal/streams/readable:1696:12)"}
+{"level":30,"time":1748379285901,"pid":6320,"hostname":"vme1dessftvm02","req":{"method":"POST","url":"/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/beneficios/diagnosticos","X-Correlation-Id":"12345678-1234-1234-1234-123456789013","X-Request-Id":"req-87654321-4321-4321-4321-210987654322","usuarioAplicacion":"usuario.test","nombreAplicacion":"TestApp","procesoNegocio":"ConsultaDiagnosticos"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\pino-http\\logger.js:115:39)\n    at ServerResponse.onResponseComplete (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\pino-http\\logger.js:178:14)\n    at ServerResponse.emit (node:events:530:35)\n    at onFinish (node:_http_outgoing:1005:10)\n    at callback (node:internal/streams/writable:756:21)\n    at afterWrite (node:internal/streams/writable:701:5)\n    at afterWriteTick (node:internal/streams/writable:687:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)"},"responseTime":9409,"msg":"request errored"}
 */
