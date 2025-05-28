@@ -603,5 +603,205 @@ curl -X POST "http://localhost:3000/sucursales" \
     "pageSize": 20,
     "pageStartIndex": 0
   }'
+Comandos cURL para Servicios de Diagnósticos
+Variables de Entorno
+Configura estas variables antes de ejecutar los comandos:
+bash# URL base del servicio
+export BASE_URL="http://localhost:3000"
+# o para producción: export BASE_URL="https://{instancia-apim}"
 
+# Headers requeridos
+export APIM_KEY="tu-subscription-key-aqui"
+export CORRELATION_ID="$(uuidgen)"
+export REQUEST_ID="$(uuidgen)"
+export NOMBRE_APLICACION="TestApp"
+export PROCESO_NEGOCIO="ConsultaDiagnosticos"
+export USUARIO_APLICACION="usuario.prueba"
+1. Consulta de Diagnósticos
+Endpoint: POST /diagnosticos
+bashcurl -X POST \
+  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
+  -H "X-Correlation-Id: ${CORRELATION_ID}" \
+  -H "X-Request-Id: ${REQUEST_ID}" \
+  -H "nombreAplicacion: ${NOMBRE_APLICACION}" \
+  -H "procesoNegocio: ${PROCESO_NEGOCIO}" \
+  -H "usuarioAplicacion: ${USUARIO_APLICACION}" \
+  -d '{
+    "filtros": {
+      "codigoDiagnostico": "K25",
+      "descripcion": "ulcera",
+      "activo": true
+    },
+    "paginacion": {
+      "pagina": 1,
+      "tamanoPagina": 10
+    }
+  }' \
+  --verbose
+Ejemplo con filtros específicos:
+bashcurl -X POST \
+  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
+  -H "X-Correlation-Id: ${CORRELATION_ID}" \
+  -H "X-Request-Id: ${REQUEST_ID}" \
+  -H "nombreAplicacion: ${NOMBRE_APLICACION}" \
+  -H "procesoNegocio: ${PROCESO_NEGOCIO}" \
+  -H "usuarioAplicacion: ${USUARIO_APLICACION}" \
+  -d '{
+    "filtros": {
+      "codigoDiagnostico": "A00",
+      "descripcion": "colera",
+      "categoria": "INFECTOCONTAGIOSA",
+      "activo": true
+    },
+    "paginacion": {
+      "pagina": 1,
+      "tamanoPagina": 20
+    }
+  }' \
+  --verbose
+2. Consulta de Beneficios por Diagnóstico
+Endpoint: POST /diagnosticos/beneficios
+bashcurl -X POST \
+  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos/beneficios" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
+  -H "X-Correlation-Id: ${CORRELATION_ID}" \
+  -H "X-Request-Id: ${REQUEST_ID}" \
+  -H "nombreAplicacion: ${NOMBRE_APLICACION}" \
+  -H "procesoNegocio: ${PROCESO_NEGOCIO}" \
+  -H "usuarioAplicacion: ${USUARIO_APLICACION}" \
+  -d '{
+    "codigosDiagnostico": ["K25", "K26", "K27"],
+    "tipoCobertura": "AMBULATORIO",
+    "codigoConvenio": "CONV001",
+    "activo": true
+  }' \
+  --verbose
+Ejemplo con múltiples diagnósticos:
+bashcurl -X POST \
+  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos/beneficios" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
+  -H "X-Correlation-Id: ${CORRELATION_ID}" \
+  -H "X-Request-Id: ${REQUEST_ID}" \
+  -H "nombreAplicacion: ${NOMBRE_APLICACION}" \
+  -H "procesoNegocio: ${PROCESO_NEGOCIO}" \
+  -H "usuarioAplicacion: ${USUARIO_APLICACION}" \
+  -d '{
+    "codigosDiagnostico": ["A00", "A01", "A02", "A03"],
+    "tipoCobertura": "HOSPITALARIO",
+    "codigoConvenio": "CONV002",
+    "activo": true,
+    "incluirDetalles": true
+  }' \
+  --verbose
+Scripts de Prueba Automatizados
+Script para generar IDs únicos cada vez:
+bash#!/bin/bash
+# test-diagnosticos.sh
+
+BASE_URL="http://localhost:3000"
+APIM_KEY="tu-subscription-key-aqui"
+
+# Generar IDs únicos
+CORRELATION_ID=$(date +%s%N)
+REQUEST_ID=$(date +%s%N | tail -c 10)
+
+echo "=== Probando servicio de diagnósticos ==="
+echo "Correlation ID: $CORRELATION_ID"
+echo "Request ID: $REQUEST_ID"
+
+# Prueba 1: Consulta de diagnósticos
+echo -e "\n1. Consultando diagnósticos..."
+curl -X POST \
+  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
+  -H "X-Correlation-Id: ${CORRELATION_ID}" \
+  -H "X-Request-Id: ${REQUEST_ID}" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaDiagnosticos" \
+  -H "usuarioAplicacion: usuario.prueba" \
+  -d '{
+    "filtros": {
+      "descripcion": "ulcera",
+      "activo": true
+    },
+    "paginacion": {
+      "pagina": 1,
+      "tamanoPagina": 5
+    }
+  }' | jq '.'
+
+echo -e "\n\n2. Consultando beneficios por diagnóstico..."
+# Prueba 2: Consulta de beneficios
+curl -X POST \
+  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos/beneficios" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
+  -H "X-Correlation-Id: ${CORRELATION_ID}" \
+  -H "X-Request-Id: ${REQUEST_ID}" \
+  -H "nombreAplicacion: TestApp" \
+  -H "procesoNegocio: ConsultaDiagnosticos" \
+  -H "usuarioAplicacion: usuario.prueba" \
+  -d '{
+    "codigosDiagnostico": ["K25", "K26"],
+    "tipoCobertura": "AMBULATORIO",
+    "activo": true
+  }' | jq '.'
+Casos de Prueba para Errores
+1. Prueba de validación (400 Bad Request):
+bashcurl -X POST \
+  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
+  -H "X-Correlation-Id: ${CORRELATION_ID}" \
+  -H "X-Request-Id: ${REQUEST_ID}" \
+  -H "nombreAplicacion: ${NOMBRE_APLICACION}" \
+  -H "procesoNegocio: ${PROCESO_NEGOCIO}" \
+  -H "usuarioAplicacion: ${USUARIO_APLICACION}" \
+  -d '{
+    "filtros": {
+      "paginacion": {
+        "pagina": -1,
+        "tamanoPagina": 0
+      }
+    }
+  }'
+2. Prueba sin headers requeridos (400 Bad Request):
+bashcurl -X POST \
+  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filtros": {
+      "descripcion": "test"
+    }
+  }'
+3. Prueba con datos no encontrados (404 Not Found):
+bashcurl -X POST \
+  "${BASE_URL}/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/diagnosticos/beneficios" \
+  -H "Content-Type: application/json" \
+  -H "ocp-apim-subscription-key: ${APIM_KEY}" \
+  -H "X-Correlation-Id: ${CORRELATION_ID}" \
+  -H "X-Request-Id: ${REQUEST_ID}" \
+  -H "nombreAplicacion: ${NOMBRE_APLICACION}" \
+  -H "procesoNegocio: ${PROCESO_NEGOCIO}" \
+  -H "usuarioAplicacion: ${USUARIO_APLICACION}" \
+  -d '{
+    "codigosDiagnostico": ["INEXISTENTE999"],
+    "tipoCobertura": "AMBULATORIO",
+    "activo": true
+  }'
+Notas Importantes
+
+Reemplaza los valores: Actualiza BASE_URL, APIM_KEY y otros headers con valores reales.
+UUIDs únicos: Los X-Correlation-Id y X-Request-Id deben ser únicos para cada solicitud.
+Headers requeridos: Todos los headers mostrados son obligatorios según la definición de los controladores.
+Formato de respuesta: Las respuestas estarán en formato JSON. Usa | jq '.' para formatear la salida.
+Logs: Revisa los logs de la aplicación para ver la trazabilidad con los IDs de correlación.
+Documentación Swagger: Accede a {BASE_URL}/docs para ver la documentación interactiva de la API.
 */
