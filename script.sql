@@ -1157,4 +1157,23 @@ curl --location 'http://localhost:3000/ne-consulta-convenioBeneficioDiagnosticos
       }
     ]
 }'
+curl -X POST \
+  http://localhost:3000/sucursales \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "codigoProveedor": "10001",
+        "codIpress": "CSP-SURCO",
+        "estado": "V",
+        "ruc": [],
+        "eps": "PACIFICO SALUD",
+        "amed": "PACIFICO SEGUROS",
+        "pageSize": 10,
+        "pageStartIndex": 0,
+        "sort": [
+          {
+            "field": "descripcion",
+            "direction": "asc"
+          }
+        ]
+      }'
 */
