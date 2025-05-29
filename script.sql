@@ -1157,4 +1157,5 @@ curl --location 'http://localhost:3000/ne-consulta-convenioBeneficioDiagnosticos
       }
     ]
 }'
+https://apim-eu1-border-service-desa.azure-api.net/ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0
 */
