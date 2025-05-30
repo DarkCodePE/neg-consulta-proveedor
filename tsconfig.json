@@ -88,3 +88,29 @@ CREATE TABLE [convenio].[Mae_Log_Error_Merge] (
 [RegistrosTotales] INT NULL,
 [Estado] NVARCHAR(20) NULL
 ) ON [PRIMARY];
+
+
+_____
+CREATE TABLE [convenio].[Mae_Beneficio_Temp](
+[idBeneficio] [nvarchar](max) NULL,
+[idGrupoBeneficio] [nvarchar](max) NULL,
+[idTipoCobertura] [nvarchar](max) NULL,
+[idSubtipoCobertura] [nvarchar](max) NULL,
+[codBeneficio] [nvarchar](max) NULL,
+[descripcion] [nvarchar](max) NULL,
+[desResumida] [nvarchar](max) NULL,
+[codGrupoBeneficio] [nvarchar](max) NULL,
+[codCobertura] [nvarchar](max) NULL,
+[subtipoCobert] [nvarchar](max) NULL,
+[estRegistro] [nvarchar](max) NULL,
+[codSistema] [nvarchar](max) NULL,
+[compania] [nvarchar](max) NULL,
+[codUsuarioCreadorSistema] [nvarchar](max) NULL,
+[fecCreacionSistema] [datetime] NULL,
+[codUsuarioUpdateSistema] [nvarchar](max) NULL,
+[fecUpdateSistema] [datetime] NULL,
+[codUsuarioCreador] [nvarchar](max) NULL,
+[fecCreacion] [datetime] NULL,
+[codUsuarioUpdate] [nvarchar](max) NULL,
+[fecUpdate] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
