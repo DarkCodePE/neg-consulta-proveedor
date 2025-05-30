@@ -557,3 +557,23 @@ SELECT
 THROW;
 END CATCH;
 END;
+
+
+---
+INSERT INTO [convenio].[Mae_Beneficio_Temp] (
+idBeneficio, idGrupoBeneficio, idTipoCobertura, idSubtipoCobertura,
+codBeneficio, descripcion, desResumida, codGrupoBeneficio,
+codCobertura, subtipoCobert, estRegistro, codSistema, compania,
+codUsuarioCreadorSistema, fecCreacionSistema, codUsuarioUpdateSistema,
+fecUpdateSistema, codUsuarioCreador, fecCreacion, codUsuarioUpdate, fecUpdate
+)
+VALUES
+('B001', 'G01', 'T01', 'ST01', 'CB001', 'Beneficio 1', 'B1', 'CG01', 'CC01', 'SC01', 'A', 'SYS1', 'COMP1',
+'USR1', GETDATE(), NULL, NULL, 'USR1', GETDATE(), NULL, NULL),
+('B002', 'G02', 'T02', 'ST02', 'CB002', 'Beneficio 2', 'B2', 'CG02', 'CC02', 'SC02', 'A', 'SYS1', 'COMP1',
+'USR1', GETDATE(), NULL, NULL, 'USR1', GETDATE(), NULL, NULL);
+
+
+EXEC [convenio].[USP_PRO_DeltaBeneficio]
+@BatchSize = 5000,
+@EnableLogging = 1;
