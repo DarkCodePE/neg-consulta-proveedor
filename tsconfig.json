@@ -605,3 +605,232 @@ CREATE TABLE [convenio].[Mae_BeneficioEPS](
 	[fecCreacion] [datetime] NULL
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
+
+
+    [16:22, 30/5/2025] David 😎 Arquitecto Pacifico: CREATE TABLE [convenio].[Mae_BeneficioEPS_Temp] (
+[idBeneficioEps] NVARCHAR(MAX) NULL,
+[idBeneficio] NVARCHAR(MAX) NULL,
+[codBeneficio] NVARCHAR(MAX) NULL,
+[tipoGastoPrestacion] NVARCHAR(MAX) NULL,
+[indRequiereCartaGarantia] NVARCHAR(MAX) NULL,
+[indBeneficioAdicional] NVARCHAR(MAX) NULL,
+[indBeneficioPrincipal] NVARCHAR(MAX) NULL,
+[indProcEspeciales] NVARCHAR(MAX) NULL,
+[tipoPEAS] NVARCHAR(MAX) NULL,
+[indBeneficioComun] NVARCHAR(MAX) NULL,
+[codGrupoServicio] INT NULL,
+[indMostrarCG] NVARCHAR(MAX) NULL,
+[codSistema] NVARCHAR(MAX) NULL,
+[estRegistro] NVARCHAR(MAX) NULL,
+[codUsuarioCreadorSistema] NVARCHAR(MAX) NULL,
+[fecCreacionSistema] DATETIME NULL,
+[codUsuarioUpdateSistema] NVARCHAR(MAX) NU…
+[16:22, 30/5/2025] David 😎 Arquitecto Pacifico: CREATE OR ALTER PROCEDURE [convenio].[USP_PRO_DeltaBeneficioEPS]
+@BatchSize INT = 500,
+@EnableLogging BIT = 0
+AS
+BEGIN
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+
+DECLARE @TotalRecords INT;
+DECLARE @ProcessedRecords INT = 0;
+DECLARE @BatchNumber INT = 1;
+DECLARE @StartTime DATETIME2 = SYSDATETIME();
+DECLARE @ErrorMessage NVARCHAR(4000);
+DECLARE @TablaDestino NVARCHAR(100) = 'Mae_BeneficioEPS';
+
+SELECT @TotalRecords = COUNT(*) FROM [convenio].[Mae_BeneficioEPS_Temp] WHERE idBeneficioEps IS NOT NULL;
+
+IF @EnableLogging = 1
+PRINT CONCAT('🔄 Iniciando MERGE de ', @TotalRecords, ' registros válidos...');
+
+IF EXISTS (
+SELECT idBeneficioEps
+FROM [convenio].[Mae_BeneficioEPS_Temp]
+WHERE idBeneficioEps IS NOT NULL
+GROUP BY idBeneficioEps
+HAVING COUNT(*) > 1
+)
+BEGIN
+RAISERROR('Error: Registros duplicados detectados en Mae_BeneficioEPS_Temp.', 16, 1);
+RETURN;
+END;
+
+BEGIN TRY
+CREATE TABLE #Batch (
+idBeneficioEps NVARCHAR(MAX) NOT NULL,
+idBeneficio NVARCHAR(MAX) NULL,
+codBeneficio NVARCHAR(MAX) NULL,
+tipoGastoPrestacion NVARCHAR(MAX) NULL,
+indRequiereCartaGarantia NVARCHAR(MAX) NULL,
+indBeneficioAdicional NVARCHAR(MAX) NULL,
+indBeneficioPrincipal NVARCHAR(MAX) NULL,
+indProcEspeciales NVARCHAR(MAX) NULL,
+tipoPEAS NVARCHAR(MAX) NULL,
+indBeneficioComun NVARCHAR(MAX) NULL,
+codGrupoServicio INT NULL,
+indMostrarCG NVARCHAR(MAX) NULL,
+codSistema NVARCHAR(MAX) NULL,
+estRegistro NVARCHAR(MAX) NULL,
+codUsuarioCreadorSistema NVARCHAR(MAX) NULL,
+fecCreacionSistema DATETIME NULL,
+codUsuarioUpdateSistema NVARCHAR(MAX) NULL,
+fecUpdateSistema DATETIME NULL,
+codUsuarioCreador NVARCHAR(MAX) NULL,
+fecCreacion DATETIME NULL,
+BatchGroup INT NOT NULL,
+PRIMARY KEY CLUSTERED (BatchGroup, idBeneficioEps)
+);
+
+INSERT INTO #Batch (
+idBeneficioEps, idBeneficio, codBeneficio, tipoGastoPrestacion,
+indRequiereCartaGarantia, indBeneficioAdicional, indBeneficioPrincipal,
+indProcEspeciales, tipoPEAS, indBeneficioComun, codGrupoServicio,
+indMostrarCG, codSistema, estRegistro, codUsuarioCreadorSistema,
+fecCreacionSistema, codUsuarioUpdateSistema, fecUpdateSistema,
+codUsuarioCreador, fecCreacion, BatchGroup
+)
+SELECT
+idBeneficioEps, idBeneficio, codBeneficio, tipoGastoPrestacion,
+indRequiereCartaGarantia, indBeneficioAdicional, indBeneficioPrincipal,
+indProcEspeciales, tipoPEAS, indBeneficioComun, codGrupoServicio,
+indMostrarCG, codSistema, estRegistro, codUsuarioCreadorSistema,
+fecCreacionSistema, codUsuarioUpdateSistema, fecUpdateSistema,
+codUsuarioCreador, fecCreacion,
+((ROW_NUMBER() OVER (ORDER BY idBeneficioEps) - 1) / @BatchSize) + 1
+FROM [convenio].[Mae_BeneficioEPS_Temp]
+WHERE idBeneficioEps IS NOT NULL;
+
+DECLARE @MaxBatchGroup INT;
+SELECT @MaxBatchGroup = MAX(BatchGroup) FROM #Batch;
+
+WHILE @BatchNumber <= @MaxBatchGroup
+BEGIN
+BEGIN TRANSACTION;
+
+MERGE [convenio].[Mae_BeneficioEPS] AS TARGET
+USING (
+SELECT * FROM #Batch WHERE BatchGroup = @BatchNumber
+) AS SOURCE
+ON TARGET.idBeneficioEps = SOURCE.idBeneficioEps
+
+WHEN MATCHED AND (
+ISNULL(TARGET.idBeneficio,'') != ISNULL(SOURCE.idBeneficio,'') OR
+ISNULL(TARGET.codBeneficio,'') != ISNULL(SOURCE.codBeneficio,'') OR
+ISNULL(TARGET.tipoGastoPrestacion,'') != ISNULL(SOURCE.tipoGastoPrestacion,'') OR
+ISNULL(TARGET.indRequiereCartaGarantia,'') != ISNULL(SOURCE.indRequiereCartaGarantia,'') OR
+ISNULL(TARGET.indBeneficioAdicional,'') != ISNULL(SOURCE.indBeneficioAdicional,'') OR
+ISNULL(TARGET.indBeneficioPrincipal,'') != ISNULL(SOURCE.indBeneficioPrincipal,'') OR
+ISNULL(TARGET.indProcEspeciales,'') != ISNULL(SOURCE.indProcEspeciales,'') OR
+ISNULL(TARGET.tipoPEAS,'') != ISNULL(SOURCE.tipoPEAS,'') OR
+ISNULL(TARGET.indBeneficioComun,'') != ISNULL(SOURCE.indBeneficioComun,'') OR
+ISNULL(TARGET.codGrupoServicio, -1) != ISNULL(SOURCE.codGrupoServicio, -1) OR
+ISNULL(TARGET.indMostrarCG,'') != ISNULL(SOURCE.indMostrarCG,'') OR
+ISNULL(TARGET.codSistema,'') != ISNULL(SOURCE.codSistema,'') OR
+ISNULL(TARGET.estRegistro,'') != ISNULL(SOURCE.estRegistro,'') OR
+ISNULL(TARGET.codUsuarioCreadorSistema,'') != ISNULL(SOURCE.codUsuarioCreadorSistema,'') OR
+ISNULL(TARGET.fecCreacionSistema,'1900-01-01') != ISNULL(SOURCE.fecCreacionSistema,'1900-01-01') OR
+ISNULL(TARGET.codUsuarioUpdateSistema,'') != ISNULL(SOURCE.codUsuarioUpdateSistema,'') OR
+ISNULL(TARGET.fecUpdateSistema,'1900-01-01') != ISNULL(SOURCE.fecUpdateSistema,'1900-01-01') OR
+ISNULL(TARGET.codUsuarioCreador,'') != ISNULL(SOURCE.codUsuarioCreador,'') OR
+ISNULL(TARGET.fecCreacion,'1900-01-01') != ISNULL(SOURCE.fecCreacion,'1900-01-01')
+) THEN
+UPDATE SET
+TARGET.idBeneficio = SOURCE.idBeneficio,
+TARGET.codBeneficio = SOURCE.codBeneficio,
+TARGET.tipoGastoPrestacion = SOURCE.tipoGastoPrestacion,
+TARGET.indRequiereCartaGarantia = SOURCE.indRequiereCartaGarantia,
+TARGET.indBeneficioAdicional = SOURCE.indBeneficioAdicional,
+TARGET.indBeneficioPrincipal = SOURCE.indBeneficioPrincipal,
+TARGET.indProcEspeciales = SOURCE.indProcEspeciales,
+TARGET.tipoPEAS = SOURCE.tipoPEAS,
+TARGET.indBeneficioComun = SOURCE.indBeneficioComun,
+TARGET.codGrupoServicio = SOURCE.codGrupoServicio,
+TARGET.indMostrarCG = SOURCE.indMostrarCG,
+TARGET.codSistema = SOURCE.codSistema,
+TARGET.estRegistro = SOURCE.estRegistro,
+TARGET.codUsuarioCreadorSistema = SOURCE.codUsuarioCreadorSistema,
+TARGET.fecCreacionSistema = SOURCE.fecCreacionSistema,
+TARGET.codUsuarioUpdateSistema = SOURCE.codUsuarioUpdateSistema,
+TARGET.fecUpdateSistema = SOURCE.fecUpdateSistema,
+TARGET.codUsuarioCreador = SOURCE.codUsuarioCreador,
+TARGET.fecCreacion = SOURCE.fecCreacion
+
+WHEN NOT MATCHED BY TARGET THEN
+INSERT (
+idBeneficioEps, idBeneficio, codBeneficio, tipoGastoPrestacion,
+indRequiereCartaGarantia, indBeneficioAdicional, indBeneficioPrincipal,
+indProcEspeciales, tipoPEAS, indBeneficioComun, codGrupoServicio,
+indMostrarCG, codSistema, estRegistro, codUsuarioCreadorSistema,
+fecCreacionSistema, codUsuarioUpdateSistema, fecUpdateSistema,
+codUsuarioCreador, fecCreacion
+)
+VALUES (
+SOURCE.idBeneficioEps, SOURCE.idBeneficio, SOURCE.codBeneficio, SOURCE.tipoGastoPrestacion,
+SOURCE.indRequiereCartaGarantia, SOURCE.indBeneficioAdicional, SOURCE.indBeneficioPrincipal,
+SOURCE.indProcEspeciales, SOURCE.tipoPEAS, SOURCE.indBeneficioComun, SOURCE.codGrupoServicio,
+SOURCE.indMostrarCG, SOURCE.codSistema, SOURCE.estRegistro, SOURCE.codUsuarioCreadorSistema,
+SOURCE.fecCreacionSistema, SOURCE.codUsuarioUpdateSistema, SOURCE.fecUpdateSistema,
+SOURCE.codUsuarioCreador, SOURCE.fecCreacion
+);
+
+COMMIT TRANSACTION;
+
+SELECT @ProcessedRecords += COUNT(*) FROM #Batch WHERE BatchGroup = @BatchNumber;
+
+IF @EnableLogging = 1
+PRINT CONCAT('✅ Sub-lote ', @BatchNumber, '/', @MaxBatchGroup, ' completado. Procesados: ', @ProcessedRecords);
+
+SET @BatchNumber += 1;
+IF @BatchNumber <= @MaxBatchGroup
+WAITFOR DELAY '00:00:00.010';
+END;
+
+DROP TABLE #Batch;
+TRUNCATE TABLE [convenio].[Mae_BeneficioEPS_Temp];
+
+IF @EnableLogging = 1
+PRINT '🧹 Tabla Mae_BeneficioEPS_Temp limpiada con TRUNCATE.';
+
+DECLARE @Duration INT = DATEDIFF(MILLISECOND, @StartTime, SYSDATETIME());
+
+PRINT CONCAT('✅ MERGE completado. Total: ', @TotalRecords, ', Tiempo: ', @Duration, ' ms, Promedio: ',
+CASE WHEN @TotalRecords > 0 THEN @Duration / @TotalRecords ELSE 0 END, ' ms/reg');
+
+SELECT
+@TotalRecords AS TotalRecords,
+@ProcessedRecords AS ProcessedRecords,
+@Duration AS DurationMs,
+CASE WHEN @TotalRecords > 0 THEN @Duration / @TotalRecords ELSE 0 END AS AvgMsPerRecord,
+'SUCCESS' AS Status;
+
+END TRY
+BEGIN CATCH
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF OBJECT_ID('tempdb..#Batch') IS NOT NULL DROP TABLE #Batch;
+
+SET @ErrorMessage = CONCAT('❌ Error en sub-lote ', @BatchNumber, ': ', ERROR_MESSAGE(), ' (Línea: ', ERROR_LINE(), ')');
+PRINT @ErrorMessage;
+
+IF OBJECT_ID('convenio.Mae_Log_Error_Merge') IS NOT NULL
+BEGIN
+INSERT INTO [convenio].[Mae_Log_Error_Merge] (
+Procedimiento, TablaDestino, MensajeError, LineaError,
+RegistrosProcesados, RegistrosTotales, Estado
+)
+VALUES (
+'USP_PRO_DeltaBeneficioEPS', @TablaDestino, ERROR_MESSAGE(),
+ERROR_LINE(), @ProcessedRecords, @TotalRecords, 'ERROR'
+);
+END
+
+SELECT
+@ProcessedRecords AS ProcessedRecords,
+@TotalRecords AS TotalRecords,
+@ErrorMessage AS ErrorMessage,
+'ERROR' AS Status;
+
+THROW;
+END CATCH;
+END;
