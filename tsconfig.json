@@ -75,3 +75,16 @@ CREATE TABLE [convenio].[Mae_Log_Error_Merge]RIMARY KEY,
 [Estado] NVARCHAR(20) NULL
 ) ON [PRIMARY]
 G
+
+
+CREATE TABLE [convenio].[Mae_Log_Error_Merge] (
+[IdLog] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+[FechaError] DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+[Procedimiento] NVARCHAR(100) NULL,
+[TablaDestino] NVARCHAR(100) NULL,
+[MensajeError] NVARCHAR(4000) NULL,
+[LineaError] INT NULL,
+[RegistrosProcesados] INT NULL,
+[RegistrosTotales] INT NULL,
+[Estado] NVARCHAR(20) NULL
+) ON [PRIMARY];
