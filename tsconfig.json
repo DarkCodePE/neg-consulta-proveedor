@@ -577,3 +577,31 @@ VALUES
 EXEC [convenio].[USP_PRO_DeltaBeneficio]
 @BatchSize = 5000,
 @EnableLogging = 1;
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [convenio].[Mae_BeneficioEPS](
+	[idBeneficioEps] [nvarchar](max) NULL,
+	[idBeneficio] [nvarchar](max) NULL,
+	[codBeneficio] [nvarchar](max) NULL,
+	[tipoGastoPrestacion] [nvarchar](max) NULL,
+	[indRequiereCartaGarantia] [nvarchar](max) NULL,
+	[indBeneficioAdicional] [nvarchar](max) NULL,
+	[indBeneficioPrincipal] [nvarchar](max) NULL,
+	[indProcEspeciales] [nvarchar](max) NULL,
+	[tipoPEAS] [nvarchar](max) NULL,
+	[indBeneficioComun] [nvarchar](max) NULL,
+	[codGrupoServicio] [int] NULL,
+	[indMostrarCG] [nvarchar](max) NULL,
+	[codSistema] [nvarchar](max) NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[codUsuarioCreadorSistema] [nvarchar](max) NULL,
+	[fecCreacionSistema] [datetime] NULL,
+	[codUsuarioUpdateSistema] [nvarchar](max) NULL,
+	[fecUpdateSistema] [datetime] NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[fecCreacion] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
