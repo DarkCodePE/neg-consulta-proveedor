@@ -114,3 +114,228 @@ CREATE TABLE [convenio].[Mae_Beneficio_Temp](
 [codUsuarioUpdate] [nvarchar](max) NULL,
 [fecUpdate] [datetime] NULL
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+CREATE OR ALTER PROCEDURE [convenio].[USP_PRO_DeltaBeneficio]
+@BatchSize INT = 500,
+@EnableLogging BIT = 0
+AS
+BEGIN
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+
+DECLARE @TotalRecords INT;
+DECLARE @ProcessedRecords INT = 0;
+DECLARE @BatchNumber INT = 1;
+DECLARE @StartTime DATETIME2 = SYSDATETIME();
+DECLARE @ErrorMessage NVARCHAR(4000);
+DECLARE @TablaDestino NVARCHAR(100) = 'Mae_Beneficio';
+
+-- Contar registros en staging
+SELECT @TotalRecords = COUNT(*) FROM [convenio].[Mae_Beneficio_Temp];
+
+-- Log inicial
+IF @EnableLogging = 1
+PRINT CONCAT('🔄 Iniciando MERGE de ', @TotalRecords, ' registros...');
+
+-- Validación de duplicados
+IF EXISTS (
+SELECT [idBeneficio] FROM [convenio].[Mae_Beneficio_Temp] GROUP BY [idBeneficio] HAVING COUNT(*) > 1
+)
+BEGIN
+RAISERROR('Error: Registros duplicados detectados en Mae_Beneficio_Temp.', 16, 1);
+RETURN;
+END;
+
+BEGIN TRY
+-- Crear tabla temporal para controlar los sub-lotes
+CREATE TABLE #Batch (
+[idBeneficio] NVARCHAR(MAX) NULL,
+[idGrupoBeneficio] NVARCHAR(MAX) NULL,
+[idTipoCobertura] NVARCHAR(MAX) NULL,
+[idSubtipoCobertura] NVARCHAR(MAX) NULL,
+[codBeneficio] NVARCHAR(MAX) NULL,
+[descripcion] NVARCHAR(MAX) NULL,
+[desResumida] NVARCHAR(MAX) NULL,
+[codGrupoBeneficio] NVARCHAR(MAX) NULL,
+[codCobertura] NVARCHAR(MAX) NULL,
+[subtipoCobert] NVARCHAR(MAX) NULL,
+[estRegistro] NVARCHAR(MAX) NULL,
+[codSistema] NVARCHAR(MAX) NULL,
+[compania] NVARCHAR(MAX) NULL,
+[codUsuarioCreadorSistema] NVARCHAR(MAX) NULL,
+[fecCreacionSistema] DATETIME NULL,
+[codUsuarioUpdateSistema] NVARCHAR(MAX) NULL,
+[fecUpdateSistema] DATETIME NULL,
+[codUsuarioCreador] NVARCHAR(MAX) NULL,
+[fecCreacion] DATETIME NULL,
+[codUsuarioUpdate] NVARCHAR(MAX) NULL,
+[fecUpdate] DATETIME NULL,
+BatchGroup INT NOT NULL,
+PRIMARY KEY CLUSTERED (BatchGroup, [idBeneficio])
+);
+
+-- Insertar los datos de staging dividiéndolos en grupos
+INSERT INTO #Batch (
+[idBeneficio], [idGrupoBeneficio], [idTipoCobertura], [idSubtipoCobertura], [codBeneficio], [descripcion], [desResumida],
+[codGrupoBeneficio], [codCobertura], [subtipoCobert], [estRegistro], [codSistema], [compania], [codUsuarioCreadorSistema],
+[fecCreacionSistema], [codUsuarioUpdateSistema], [fecUpdateSistema], [codUsuarioCreador], [fecCreacion], [codUsuarioUpdate],
+[fecUpdate], BatchGroup
+)
+SELECT
+[idBeneficio], [idGrupoBeneficio], [idTipoCobertura], [idSubtipoCobertura], [codBeneficio], [descripcion], [desResumida],
+[codGrupoBeneficio], [codCobertura], [subtipoCobert], [estRegistro], [codSistema], [compania], [codUsuarioCreadorSistema],
+[fecCreacionSistema], [codUsuarioUpdateSistema], [fecUpdateSistema], [codUsuarioCreador], [fecCreacion], [codUsuarioUpdate],
+[fecUpdate],
+((ROW_NUMBER() OVER (ORDER BY [idBeneficio]) - 1) / @BatchSize) + 1 AS BatchGroup
+FROM [convenio].[Mae_Beneficio_Temp];
+
+DECLARE @MaxBatchGroup INT;
+SELECT @MaxBatchGroup = MAX(BatchGroup) FROM #Batch;
+
+-- Procesar sub-lotes uno a uno
+WHILE @BatchNumber <= @MaxBatchGroup
+BEGIN
+BEGIN TRANSACTION;
+
+-- MERGE para cada sub-lote
+MERGE [convenio].[Mae_Beneficio] AS TARGET
+USING (
+SELECT
+[idBeneficio], [idGrupoBeneficio], [idTipoCobertura], [idSubtipoCobertura], [codBeneficio], [descripcion], [desResumida],
+[codGrupoBeneficio], [codCobertura], [subtipoCobert], [estRegistro], [codSistema], [compania], [codUsuarioCreadorSistema],
+[fecCreacionSistema], [codUsuarioUpdateSistema], [fecUpdateSistema], [codUsuarioCreador], [fecCreacion], [codUsuarioUpdate],
+[fecUpdate]
+FROM #Batch
+WHERE BatchGroup = @BatchNumber
+) AS SOURCE
+ON TARGET.[idBeneficio] = SOURCE.[idBeneficio]
+
+WHEN MATCHED AND (
+TARGET.[idGrupoBeneficio] != SOURCE.[idGrupoBeneficio] OR
+TARGET.[idTipoCobertura] != SOURCE.[idTipoCobertura] OR
+TARGET.[idSubtipoCobertura] != SOURCE.[idSubtipoCobertura] OR
+TARGET.[codBeneficio] != SOURCE.[codBeneficio] OR
+TARGET.[descripcion] != SOURCE.[descripcion] OR
+TARGET.[desResumida] != SOURCE.[desResumida] OR
+TARGET.[codGrupoBeneficio] != SOURCE.[codGrupoBeneficio] OR
+TARGET.[codCobertura] != SOURCE.[codCobertura] OR
+TARGET.[subtipoCobert] != SOURCE.[subtipoCobert] OR
+TARGET.[estRegistro] != SOURCE.[estRegistro] OR
+TARGET.[codSistema] != SOURCE.[codSistema] OR
+TARGET.[compania] != SOURCE.[compania] OR
+TARGET.[codUsuarioCreadorSistema] != SOURCE.[codUsuarioCreadorSistema] OR
+TARGET.[fecCreacionSistema] != SOURCE.[fecCreacionSistema] OR
+TARGET.[codUsuarioUpdateSistema] != SOURCE.[codUsuarioUpdateSistema] OR
+TARGET.[fecUpdateSistema] != SOURCE.[fecUpdateSistema] OR
+TARGET.[codUsuarioCreador] != SOURCE.[codUsuarioCreador] OR
+TARGET.[fecCreacion] != SOURCE.[fecCreacion] OR
+TARGET.[codUsuarioUpdate] != SOURCE.[codUsuarioUpdate] OR
+TARGET.[fecUpdate] != SOURCE.[fecUpdate]
+) THEN
+UPDATE SET
+[idGrupoBeneficio] = SOURCE.[idGrupoBeneficio],
+[idTipoCobertura] = SOURCE.[idTipoCobertura],
+[idSubtipoCobertura] = SOURCE.[idSubtipoCobertura],
+[codBeneficio] = SOURCE.[codBeneficio],
+[descripcion] = SOURCE.[descripcion],
+[desResumida] = SOURCE.[desResumida],
+[codGrupoBeneficio] = SOURCE.[codGrupoBeneficio],
+[codCobertura] = SOURCE.[codCobertura],
+[subtipoCobert] = SOURCE.[subtipoCobert],
+[estRegistro] = SOURCE.[estRegistro],
+[codSistema] = SOURCE.[codSistema],
+[compania] = SOURCE.[compania],
+[codUsuarioCreadorSistema] = SOURCE.[codUsuarioCreadorSistema],
+[fecCreacionSistema] = SOURCE.[fecCreacionSistema],
+[codUsuarioUpdateSistema] = SOURCE.[codUsuarioUpdateSistema],
+[fecUpdateSistema] = SOURCE.[fecUpdateSistema],
+[codUsuarioCreador] = SOURCE.[codUsuarioCreador],
+[fecCreacion] = SOURCE.[fecCreacion],
+[codUsuarioUpdate] = SOURCE.[codUsuarioUpdate],
+[fecUpdate] = SOURCE.[fecUpdate]
+
+WHEN NOT MATCHED BY TARGET THEN
+INSERT (
+[idBeneficio], [idGrupoBeneficio], [idTipoCobertura], [idSubtipoCobertura], [codBeneficio], [descripcion], [desResumida],
+[codGrupoBeneficio], [codCobertura], [subtipoCobert], [estRegistro], [codSistema], [compania], [codUsuarioCreadorSistema],
+[fecCreacionSistema], [codUsuarioUpdateSistema], [fecUpdateSistema], [codUsuarioCreador], [fecCreacion], [codUsuarioUpdate],
+[fecUpdate]
+)
+VALUES (
+SOURCE.[idBeneficio], SOURCE.[idGrupoBeneficio], SOURCE.[idTipoCobertura], SOURCE.[idSubtipoCobertura], SOURCE.[codBeneficio],
+SOURCE.[descripcion], SOURCE.[desResumida], SOURCE.[codGrupoBeneficio], SOURCE.[codCobertura], SOURCE.[subtipoCobert],
+SOURCE.[estRegistro], SOURCE.[codSistema], SOURCE.[compania], SOURCE.[codUsuarioCreadorSistema], SOURCE.[fecCreacionSistema],
+SOURCE.[codUsuarioUpdateSistema], SOURCE.[fecUpdateSistema], SOURCE.[codUsuarioCreador], SOURCE.[fecCreacion], SOURCE.[codUsuarioUpdate],
+SOURCE.[fecUpdate]
+);
+
+COMMIT TRANSACTION;
+
+-- Actualizar progreso
+SELECT @ProcessedRecords = @ProcessedRecords + COUNT(*)
+FROM #Batch WHERE BatchGroup = @BatchNumber;
+
+IF @EnableLogging = 1
+PRINT CONCAT('✅ Sub-lote ', @BatchNumber, '/', @MaxBatchGroup, ' completado. Procesados: ', @ProcessedRecords);
+
+SET @BatchNumber += 1;
+
+-- Micro-pausa opcional
+IF @BatchNumber <= @MaxBatchGroup
+WAITFOR DELAY '00:00:00.010';
+END;
+
+-- Limpieza final
+DROP TABLE #Batch;
+TRUNCATE TABLE [convenio].[Mae_Beneficio_Temp];
+IF @EnableLogging = 1
+PRINT '🧹 Tabla Mae_Beneficio_Temp limpiada con TRUNCATE.';
+
+-- Log final
+DECLARE @Duration INT = DATEDIFF(MILLISECOND, @StartTime, SYSDATETIME());
+DECLARE @ResultMessage NVARCHAR(500) = CONCAT(
+'✅ MERGE completado. Total: ', @TotalRecords,
+', Tiempo: ', @Duration, ' ms',
+', Promedio: ', CASE WHEN @TotalRecords > 0 THEN @Duration/@TotalRecords ELSE 0 END, ' ms/reg'
+);
+PRINT @ResultMessage;
+
+SELECT
+@TotalRecords AS TotalRecords,
+@ProcessedRecords AS ProcessedRecords,
+@Duration AS DurationMs,
+CASE WHEN @TotalRecords > 0 THEN @Duration/@TotalRecords ELSE 0 END AS AvgMsPerRecord,
+'SUCCESS' AS Status;
+
+END TRY
+BEGIN CATCH
+-- Manejo de errores
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF OBJECT_ID('tempdb..#Batch') IS NOT NULL DROP TABLE #Batch;
+
+SET @ErrorMessage = CONCAT('❌ Error en sub-lote ', @BatchNumber, ': ', ERROR_MESSAGE(), ' (Línea: ', ERROR_LINE(), ')');
+PRINT @ErrorMessage;
+
+-- Registro de error (si existe tabla de log)
+IF OBJECT_ID('convenio.Mae_Log_Error_Merge') IS NOT NULL
+BEGIN
+INSERT INTO [convenio].[Mae_Log_Error_Merge] (
+[Procedimiento], [TablaDestino], [MensajeError], [LineaError],
+[RegistrosProcesados], [RegistrosTotales], [Estado]
+)
+VALUES (
+'sp_MergeProductosDatabricks', @TablaDestino, ERROR_MESSAGE(),
+ERROR_LINE(), @ProcessedRecords, @TotalRecords, 'ERROR'
+);
+END
+
+-- Retorno en caso de error
+SELECT
+@ProcessedRecords AS ProcessedRecords,
+@TotalRecords AS TotalRecords,
+@ErrorMessage AS ErrorMessage,
+'ERROR' AS Status;
+
+THROW;
+END CATCH;
+END;
