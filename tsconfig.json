@@ -1059,4 +1059,41 @@ VALUES
 ('B002', 'BEN002', 'CB002', 'HOSPITALARIO', 'N', 'S', 'N', 'S', 'NOPEAS', 'S', 102, 'N', 'SYS1', 'A', 'USR2', GETDATE(), NULL, NULL, 'USR2', GETDATE());
 [16:33, 30/5/2025] David 😎 Arquitecto Pacifico: EXEC [convenio].[USP_PRO_DeltaBeneficioEPS]
 @BatchSize = 100,
-@EnableLogging = 1;
+@EnableLogging = 1;        
+
+
+
+
+
+✅ 1. Usar SQL Server Profiler / Extended Events (si estás usando SSMS)
+Aunque SQL Server Profiler no está directamente soportado para Azure SQL Database, puedes usar Extended Events para capturar la ejecución de procedimientos.
+
+Ejemplo básico:
+sql
+Copiar
+Editar
+-- Crear una sesión de Extended Events para capturar ejecuciones de procedimientos almacenados
+CREATE EVENT SESSION MonitorSPs
+ON DATABASE
+ADD EVENT sqlserver.sp_statement_completed
+(
+    ACTION (sqlserver.sql_text, sqlserver.client_hostname)
+)
+ADD TARGET package0.ring_buffer;
+GO
+
+-- Iniciar la sesión
+ALTER EVENT SESSION MonitorSPs ON DATABASE STATE = START;
+Para ver los resultados:
+sql
+Copiar
+Editar
+SELECT 
+    event_data.value('(event/action[@name="sql_text"]/value)[1]', 'nvarchar(max)') AS sql_text,
+    event_data.value('(event/@name)[1]', 'nvarchar(100)') AS event_name
+FROM (
+    SELECT CAST(event_data AS XML) AS event_data
+    FROM sys.dm_xe_database_session_targets t
+    JOIN sys.dm_xe_database_sessions s ON t.event_session_address = s.address
+    WHERE s.name = 'MonitorSPs'
+) AS data;
