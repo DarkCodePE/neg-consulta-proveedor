@@ -88,3 +88,31 @@ LEFT JOIN convenio.Mae_TipoCobertura tc ON tc.idTipoCobertura = b.idTipoCobertur
 LEFT JOIN convenio.Mae_SubtipoCobertura stc ON stc.idSubtipoCobertura = b.idSubtipoCobertura
 WHERE b.estRegistro = 'V'
 ORDER BY b.codBeneficio;
+
+
+curl --location 'http://localhost:3000/ms-ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/beneficios' \
+--header 'ocp-apim-subscription-key: <TU_CLAVE_DE_SUSCRIPCION>' \
+--header 'X-Correlation-Id: 1' \
+--header 'X-Request-Id: 1' \
+--header 'nombreAplicacion: oficina' \
+--header 'procesoNegocio: diagnostico' \
+--header 'usuarioAplicacion: user' \
+--header 'Content-Type: application/json' \
+--data '{
+    "filtroxCompania": "",
+    "filtroxSistema": "",
+    "filtroxCodBeneficio": [],
+    "filtroxIdBeneficio": [],
+    "filtroxCoTipoCobertura": "",
+    "filtroxCodSubTipoCobertura": "",
+    "filtroxGrupoBeneficio": "",
+    "filtroxEstadoBeneficio": "ACTIVO",
+    "pageSize": 10,
+    "pageStartIndex": 0,
+    "sort": [
+      {
+        "field": "codBeneficio",
+        "direction": "asc"
+      }
+    ]
+}'
