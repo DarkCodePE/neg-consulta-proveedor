@@ -72,3 +72,19 @@ query: SELECT "b"."idBeneficio" AS "b_idBeneficio", "b"."idGrupoBeneficio" AS "b
 [Nest] 12760  - 06/02/2025, 7:12:55 PM     LOG [BeneficioRepositoryImpl] [FIN findByCriteria] Tiempo total: 816ms, Beneficios encontrados: 10/1464
 [Nest] 12760  - 06/02/2025, 7:12:55 PM     LOG [ListarBeneficiosUseCase] [1 1] [FIN execute] Tiempo total: 818ms, Beneficios encontrados: 1464
 {"level":30,"time":1748909575163,"pid":12760,"hostname":"vme1dessftvm02","req":{"method":"POST","url":"/ms-ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/beneficios","X-Correlation-Id":"1","X-Request-Id":"1","usuarioAplicacion":"user","nombreAplicacion":"oficina","procesoNegocio":"diagnostico"},"res":{"statusCode":200},"responseTime":830,"msg":"request completed"}
+
+-- Verificar que las foreign keys tengan datos válidos
+SELECT TOP 10
+b.idBeneficio,
+b.codBeneficio,
+b.idTipoCobertura,
+b.idSubtipoCobertura,
+tc.codCobertura as codTipoCobertura,
+tc.descripcionTipo,
+stc.codCobertura as codSubtipoCobertura,
+stc.descripcionSubTipo
+FROM convenio.Mae_Beneficio b
+LEFT JOIN convenio.Mae_TipoCobertura tc ON tc.idTipoCobertura = b.idTipoCobertura
+LEFT JOIN convenio.Mae_SubtipoCobertura stc ON stc.idSubtipoCobertura = b.idSubtipoCobertura
+WHERE b.estRegistro = 'V'
+ORDER BY b.codBeneficio;
