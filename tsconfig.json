@@ -474,3 +474,10 @@ CREATE NONCLUSTERED INDEX IX_Diagnostico_Filtro
 ON [convenio].[Diagnostico] ([idDiagnostico], [codSistema])
 INCLUDE ([codDiagnostico], [descripcionDiagnostico])
 WHERE [estRegistro] = 'V' AND [codSistema] = 'NVS';
+
+
+2:10:42 PMStarted executing query at Line 38
+The statement has been terminated.
+Msg 40544, Level 17, State 12, Line 1
+The database 'db-sql-eu1-datos-desa01' has reached its size quota. Partition or delete data, drop indexes, or consult the documentation for possible resolutions.
+Total execution time: 00:01:45.558
