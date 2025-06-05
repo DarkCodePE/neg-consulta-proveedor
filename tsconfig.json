@@ -393,10 +393,40 @@ LEFT([idDiagnostico], 50),
 LEFT([estRegistro], 10)
 );
 
--- Este solo índice eliminará 80% de timeouts
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Critical
-ON [convenio].[DiagnosticoBeneficio] (
-LEFT([idBeneficio], 50),
-LEFT([idDiagnostico], 50),
-LEFT([estRegistro], 10)
-);
+BeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/beneficios/diagnosticos","X-Correlation-Id":"789","X-Request-Id":"101112","usuarioAplicacion":"medico","nombreAplicacion":"mobile-app","procesoNegocio":"diagnostico-beneficio"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\pino-http\\logger.js:115:39)\n    at ServerResponse.onResponseComplete (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\pino-http\\logger.js:178:14)\n    at ServerResponse.emit (node:events:530:35)\n    at onFinish (node:_http_outgoing:1005:10)\n    at callback (node:internal/streams/writable:756:21)\n    at afterWrite (node:internal/streams/writable:701:5)\n    at afterWriteTick (node:internal/streams/writable:687:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)"},"responseTime":15246,"msg":"request errored"}
+query failed: 
+      SELECT
+          -- Datos del diagnóstico
+          d.idDiagnostico,
+          d.codDiagnostico,
+          d.descripcionDiagnostico,
+          d.desTipDiagnostico,
+          d.codGrupoDiagnostico,
+          d.estRegistro as estadoRegistroDiagnostico,
+          d.codSistema as codigoSistemaDiagnostico,
+          d.fecCreacionSistema as fechaCreacionDiagnostico,
+          --d.codDiagnosticoCie10,
+
+          -- Datos del beneficio
+          b.idBeneficio,
+          b.codBeneficio,
+          b.descripcion as descripcionBeneficio,
+          b.desResumida as nombreBeneficio,
+          b.codGrupoBeneficio,
+          b.estRegistro as estadoRegistroBeneficio,
+          b.codSistema as codigoSistemaBeneficio,
+          b.compania as companiaBeneficio,
+
+          -- Datos de la relación
+          db.estRegistro as estadoRelacion,
+          db.fecCreacionsSistema as fechaAsociacion
+
+      FROM convenio.Diagnostico d
+      INNER JOIN convenio.DiagnosticoBeneficio db ON d.idDiagnostico = db.idDiagnostico
+      INNER JOIN convenio.Mae_Beneficio b ON db.idBeneficio = b.idBeneficio
+      WHERE db.idBeneficio IN ('01JTGQEW5WM4CCMC4M74Q9AZ4T', '01JTGQEW5WV9XKN57PJVHEW6VW', '01JTGQEW5M3X3RQQPDY399WBK9', '01JTGQEW5MMNTHQGB79Z4KACGX') AND db.estRegistro = 'V' AND d.estRegistro = 'V' AND d.codSistema = 'NVS' AND b.compania = '20002'     
+      ORDER BY d.codDiagnostico, b.codBeneficio
+      OFFSET 0 ROWS
+      FETCH NEXT 10 ROWS ONLY
+
+error: QueryFailedError: Error: Timeout: Request failed to complete in 15000ms
