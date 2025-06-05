@@ -1,1417 +1,168 @@
-{
-  "compilerOptions": {
-    "module": "commonjs",
-    "declaration": true,
-    "removeComments": true,
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
-    "allowSyntheticDefaultImports": true,
-    "target": "ES2023",
-    "sourceMap": true,FYAfQmXfS9DHnSEBx18GhVqUQLO2Zt3JJr1v
-    "outDir": "./dist",
-    "baseUrl": "./",
-    "paths": {
-      "@/*": ["src/*"]
-    },
-    "incremental": true,
-    "skipLibCheck": true,
-    "strictNullChecks": true,
-    "forceConsistentCasingInFileNames": true,
-    "noImplicitAny": false,
-    "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
-  }
-}
+-- ===============================================
+-- SCRIPTS DE OPTIMIZACIÓN PARA AZURE SQL DATABASE
+-- Siguiendo estándares de Pacífico Salud
+-- ===============================================
+
+-- ✅ 1. ÍNDICES PRINCIPALES PARA LA CONSULTA DE DIAGNÓSTICOS-BENEFICIOS
+-- Según nomenclatura EPS-DES-CMP-EST-BaseDeDatosAzureSQL.pdf
+
+-- Índice principal para DiagnosticoBeneficio (tabla de relación)
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_01
+ON convenio.DiagnosticoBeneficio(idBeneficio, idDiagnostico, estRegistro)
+INCLUDE (fecCreacionSistema);
+
+-- Índice adicional para DiagnosticoBeneficio por diagnóstico
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_02
+ON convenio.DiagnosticoBeneficio(idDiagnostico, estRegistro)
+INCLUDE (idBeneficio, fecCreacionSistema);
+
+-- Índice principal para Diagnostico
+CREATE NONCLUSTERED INDEX IX_Diagnostico_01
+ON convenio.Diagnostico(estRegistro, codSistema)
+INCLUDE (idDiagnostico, codDiagnostico, descripcionDiagnostico, desTipDiagnostico,
+codGrupoDiagnostico, fecCreacionSistema, codDiagnosticoCie10);
+
+-- Índice por código de diagnóstico
+CREATE NONCLUSTERED INDEX IX_Diagnostico_02
+ON convenio.Diagnostico(codDiagnostico, estRegistro)
+INCLUDE (idDiagnostico, descripcionDiagnostico, codSistema);
+
+-- Índice principal para Mae_Beneficio
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_01
+ON convenio.Mae_Beneficio(estRegistro, compania, codSistema)
+INCLUDE (idBeneficio, codBeneficio, descripcion, desResumida, codGrupoBeneficio);
+
+-- Índice por código de beneficio
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_02
+ON convenio.Mae_Beneficio(codBeneficio, estRegistro)
+INCLUDE (idBeneficio, descripcion, desResumida, compania);
+
+-- ✅ 2. VERIFICAR ESTADÍSTICAS Y FRAGMENTACIÓN
+-- Actualizar estadísticas para mejorar el plan de ejecución
+UPDATE STATISTICS convenio.DiagnosticoBeneficio WITH FULLSCAN;
+UPDATE STATISTICS convenio.Diagnostico WITH FULLSCAN;
+UPDATE STATISTICS convenio.Mae_Beneficio WITH FULLSCAN;
+
+-- ✅ 3. VERIFICAR FRAGMENTACIÓN DE ÍNDICES
 SELECT
-name AS database_name,
-is_read_committed_snapshot_on
-FROM sys.databases
-WHERE name = DB_NAME();
+OBJECT_NAME(ips.object_id) AS TableName,
+i.name AS IndexName,
+ips.index_type_desc,
+ips.avg_fragmentation_in_percent,
+ips.page_count,
+CASE
+WHEN ips.avg_fragmentation_in_percent > 30 THEN 'REBUILD RECOMENDADO'
+WHEN ips.avg_fragmentation_in_percent > 10 THEN 'REORGANIZE RECOMENDADO'
+ELSE 'OK'
+END AS Recomendacion
+FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'DETAILED') ips
+INNER JOIN sys.indexes i ON ips.object_id = i.object_id AND ips.index_id = i.index_id
+WHERE ips.avg_fragmentation_in_percent > 5
+AND ips.page_count > 1000
+AND OBJECT_NAME(ips.object_id) IN ('DiagnosticoBeneficio', 'Diagnostico', 'Mae_Beneficio')
+ORDER BY ips.avg_fragmentation_in_percent DESC;
 
+-- ✅ 4. MANTENIMIENTO DE ÍNDICES (Ejecutar según necesidad)
+-- REORGANIZE para fragmentación moderada (10-30%)
+ALTER INDEX IX_DiagnosticoBeneficio_01 ON convenio.DiagnosticoBeneficio REORGANIZE;
+ALTER INDEX IX_Diagnostico_01 ON convenio.Diagnostico REORGANIZE;
+ALTER INDEX IX_Mae_Beneficio_01 ON convenio.Mae_Beneficio REORGANIZE;
 
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [convenio].[Mae_Beneficio](
-	[idBeneficio] [nvarchar](max) NULL,
-	[idGrupoBeneficio] [nvarchar](max) NULL,
-	[idTipoCobertura] [nvarchar](max) NULL,
-	[idSubtipoCobertura] [nvarchar](max) NULL,
-	[codBeneficio] [nvarchar](max) NULL,
-	[descripcion] [nvarchar](max) NULL,
-	[desResumida] [nvarchar](max) NULL,
-	[codGrupoBeneficio] [nvarchar](max) NULL,
-	[codCobertura] [nvarchar](max) NULL,
-	[subtipoCobert] [nvarchar](max) NULL,
-	[estRegistro] [nvarchar](max) NULL,
-	[codSistema] [nvarchar](max) NULL,
-	[compania] [nvarchar](max) NULL,
-	[codUsuarioCreadorSistema] [nvarchar](max) NULL,
-	[fecCreacionSistema] [datetime] NULL,
-	[codUsuarioUpdateSistema] [nvarchar](max) NULL,
-	[fecUpdateSistema] [datetime] NULL,
-	[codUsuarioCreador] [nvarchar](max) NULL,
-	[fecCreacion] [datetime] NULL,
-	[codUsuarioUpdate] [nvarchar](max) NULL,
-	[fecUpdate] [datetime] NULL
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
+-- REBUILD para fragmentación alta (>30%) - USAR CON CUIDADO EN PRODUCCIÓN
+-- ALTER INDEX IX_DiagnosticoBeneficio_01 ON convenio.DiagnosticoBeneficio REBUILD WITH (ONLINE = ON);
 
+-- ✅ 5. VERIFICAR PLANES DE EJECUCIÓN PROBLEMÁTICOS
+-- Consultar planes de ejecución costosos
+SELECT TOP 10
+qs.execution_count,
+qs.total_elapsed_time / 1000000.0 AS total_elapsed_time_seconds,
+qs.total_worker_time / 1000000.0 AS total_cpu_time_seconds,
+qs.total_logical_reads,
+qs.total_physical_reads,
+SUBSTRING(qt.text, (qs.statement_start_offset/2)+1,
+((CASE qs.statement_end_offset
+WHEN -1 THEN DATALENGTH(qt.text)
+ELSE qs.statement_end_offset
+END - qs.statement_start_offset)/2)+1) AS statement_text
+FROM sys.dm_exec_query_stats qs
+CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) qt
+WHERE qt.text LIKE '%DiagnosticoBeneficio%'
+OR qt.text LIKE '%convenio.Diagnostico%'
+OR qt.text LIKE '%Mae_Beneficio%'
+ORDER BY qs.total_elapsed_time DESC;
 
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+-- ✅ 6. VERIFICAR ÍNDICES FALTANTES
+SELECT
+migs.avg_total_user_cost * (migs.avg_user_impact / 100.0) * (migs.user_seeks + migs.user_scans) AS improvement_measure,
+'CREATE INDEX [missing_index_' + CONVERT(varchar, mig.index_group_handle) + '_' + CONVERT(varchar, mid.index_handle) + ']'
++ ' ON ' + mid.statement + ' (' + ISNULL(mid.equality_columns,'')
++ CASE WHEN mid.equality_columns IS NOT NULL AND mid.inequality_columns IS NOT NULL THEN ',' ELSE '' END
++ ISNULL(mid.inequality_columns, '') + ')'
++ ISNULL(' INCLUDE (' + mid.included_columns + ')', '') AS create_index_statement,
+migs.user_seeks,
+migs.user_scans,
+migs.avg_total_user_cost,
+migs.avg_user_impact
+FROM sys.dm_db_missing_index_groups mig
+INNER JOIN sys.dm_db_missing_index_group_stats migs ON migs.group_handle = mig.index_group_handle
+INNER JOIN sys.dm_db_missing_index_details mid ON mig.index_handle = mid.index_handle
+WHERE migs.avg_total_user_cost * (migs.avg_user_impact / 100.0) * (migs.user_seeks + migs.user_scans) > 10
+AND (mid.statement LIKE '%DiagnosticoBeneficio%'
+OR mid.statement LIKE '%Diagnostico%'
+OR mid.statement LIKE '%Mae_Beneficio%')
+ORDER BY improvement_measure DESC;
 
-CREATE TABLE [convenio].[Mae_Log_Error_Merge]RIMARY KEY,
-[FechaError] DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
-[Procedimiento] NVARCHAR(100) NULL,
-[TablaDestino] NVARCHAR(100) NULL,
-[MensajeError] NVARCHAR(4000) NULL,
-[LineaError] INT NULL,
-[RegistrosProcesados] INT NULL,
-[RegistrosTotales] INT NULL,
-[Estado] NVARCHAR(20) NULL
-) ON [PRIMARY]
-G
-
-
-CREATE TABLE [convenio].[Mae_Log_Error_Merge] (
-[IdLog] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-[FechaError] DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
-[Procedimiento] NVARCHAR(100) NULL,
-[TablaDestino] NVARCHAR(100) NULL,
-[MensajeError] NVARCHAR(4000) NULL,
-[LineaError] INT NULL,
-[RegistrosProcesados] INT NULL,
-[RegistrosTotales] INT NULL,
-[Estado] NVARCHAR(20) NULL
-) ON [PRIMARY];
-
-
-_____
-CREATE TABLE [convenio].[Mae_Beneficio_Temp](
-[idBeneficio] [nvarchar](max) NULL,
-[idGrupoBeneficio] [nvarchar](max) NULL,
-[idTipoCobertura] [nvarchar](max) NULL,
-[idSubtipoCobertura] [nvarchar](max) NULL,
-[codBeneficio] [nvarchar](max) NULL,
-[descripcion] [nvarchar](max) NULL,
-[desResumida] [nvarchar](max) NULL,
-[codGrupoBeneficio] [nvarchar](max) NULL,
-[codCobertura] [nvarchar](max) NULL,
-[subtipoCobert] [nvarchar](max) NULL,
-[estRegistro] [nvarchar](max) NULL,
-[codSistema] [nvarchar](max) NULL,
-[compania] [nvarchar](max) NULL,
-[codUsuarioCreadorSistema] [nvarchar](max) NULL,
-[fecCreacionSistema] [datetime] NULL,
-[codUsuarioUpdateSistema] [nvarchar](max) NULL,
-[fecUpdateSistema] [datetime] NULL,
-[codUsuarioCreador] [nvarchar](max) NULL,
-[fecCreacion] [datetime] NULL,
-[codUsuarioUpdate] [nvarchar](max) NULL,
-[fecUpdate] [datetime] NULL
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-
-CREATE OR ALTER PROCEDURE [convenio].[USP_PRO_DeltaBeneficio]
-@BatchSize INT = 500,
-@EnableLogging BIT = 0
-AS
-BEGIN
-SET NOCOUNT ON;
-SET XACT_ABORT ON;
-
-DECLARE @TotalRecords INT;
-DECLARE @ProcessedRecords INT = 0;
-DECLARE @BatchNumber INT = 1;
-DECLARE @StartTime DATETIME2 = SYSDATETIME();
-DECLARE @ErrorMessage NVARCHAR(4000);
-DECLARE @TablaDestino NVARCHAR(100) = 'Mae_Beneficio';
-
--- Contar registros en staging
-SELECT @TotalRecords = COUNT(*) FROM [convenio].[Mae_Beneficio_Temp];
-
--- Log inicial
-IF @EnableLogging = 1
-PRINT CONCAT('🔄 Iniciando MERGE de ', @TotalRecords, ' registros...');
-
--- Validación de duplicados
-IF EXISTS (
-SELECT [idBeneficio] FROM [convenio].[Mae_Beneficio_Temp] GROUP BY [idBeneficio] HAVING COUNT(*) > 1
-)
-BEGIN
-RAISERROR('Error: Registros duplicados detectados en Mae_Beneficio_Temp.', 16, 1);
-RETURN;
-END;
-
-BEGIN TRY
--- Crear tabla temporal para controlar los sub-lotes
-CREATE TABLE #Batch (
-[idBeneficio] NVARCHAR(MAX) NULL,
-[idGrupoBeneficio] NVARCHAR(MAX) NULL,
-[idTipoCobertura] NVARCHAR(MAX) NULL,
-[idSubtipoCobertura] NVARCHAR(MAX) NULL,
-[codBeneficio] NVARCHAR(MAX) NULL,
-[descripcion] NVARCHAR(MAX) NULL,
-[desResumida] NVARCHAR(MAX) NULL,
-[codGrupoBeneficio] NVARCHAR(MAX) NULL,
-[codCobertura] NVARCHAR(MAX) NULL,
-[subtipoCobert] NVARCHAR(MAX) NULL,
-[estRegistro] NVARCHAR(MAX) NULL,
-[codSistema] NVARCHAR(MAX) NULL,
-[compania] NVARCHAR(MAX) NULL,
-[codUsuarioCreadorSistema] NVARCHAR(MAX) NULL,
-[fecCreacionSistema] DATETIME NULL,
-[codUsuarioUpdateSistema] NVARCHAR(MAX) NULL,
-[fecUpdateSistema] DATETIME NULL,
-[codUsuarioCreador] NVARCHAR(MAX) NULL,
-[fecCreacion] DATETIME NULL,
-[codUsuarioUpdate] NVARCHAR(MAX) NULL,
-[fecUpdate] DATETIME NULL,
-BatchGroup INT NOT NULL,
-PRIMARY KEY CLUSTERED (BatchGroup, [idBeneficio])
+-- ✅ 7. CONFIGURACIÓN DE BASE DE DATOS OPTIMIZADA
+-- Verificar configuración actual
+SELECT
+name,
+value,
+value_in_use,
+description
+FROM sys.configurations
+WHERE name IN (
+'max degree of parallelism',
+'cost threshold for parallelism',
+'optimize for ad hoc workloads'
 );
 
--- Insertar los datos de staging dividiéndolos en grupos
-INSERT INTO #Batch (
-[idBeneficio], [idGrupoBeneficio], [idTipoCobertura], [idSubtipoCobertura], [codBeneficio], [descripcion], [desResumida],
-[codGrupoBeneficio], [codCobertura], [subtipoCobert], [estRegistro], [codSistema], [compania], [codUsuarioCreadorSistema],
-[fecCreacionSistema], [codUsuarioUpdateSistema], [fecUpdateSistema], [codUsuarioCreador], [fecCreacion], [codUsuarioUpdate],
-[fecUpdate], BatchGroup
-)
+-- ✅ 8. MONITOREO DE PERFORMANCE EN TIEMPO REAL
+-- Consultas activas que están tardando más de 10 segundos
 SELECT
-[idBeneficio], [idGrupoBeneficio], [idTipoCobertura], [idSubtipoCobertura], [codBeneficio], [descripcion], [desResumida],
-[codGrupoBeneficio], [codCobertura], [subtipoCobert], [estRegistro], [codSistema], [compania], [codUsuarioCreadorSistema],
-[fecCreacionSistema], [codUsuarioUpdateSistema], [fecUpdateSistema], [codUsuarioCreador], [fecCreacion], [codUsuarioUpdate],
-[fecUpdate],
-((ROW_NUMBER() OVER (ORDER BY [idBeneficio]) - 1) / @BatchSize) + 1 AS BatchGroup
-FROM [convenio].[Mae_Beneficio_Temp];
+r.session_id,
+r.start_time,
+r.status,
+r.command,
+r.total_elapsed_time / 1000.0 AS elapsed_seconds,
+r.cpu_time / 1000.0 AS cpu_seconds,
+r.logical_reads,
+r.reads,
+r.writes,
+t.text AS query_text,
+r.blocking_session_id,
+r.wait_type,
+r.wait_time / 1000.0 AS wait_seconds
+FROM sys.dm_exec_requests r
+CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t
+WHERE r.total_elapsed_time > 10000 -- Más de 10 segundos
+AND r.session_id != @@SPID
+ORDER BY r.total_elapsed_time DESC;
 
-DECLARE @MaxBatchGroup INT;
-SELECT @MaxBatchGroup = MAX(BatchGroup) FROM #Batch;
+-- ✅ 9. LIMPIEZA DE CACHE (Solo para troubleshooting en desarrollo)
+-- ⚠️ NO EJECUTAR EN PRODUCCIÓN
+-- DBCC FREEPROCCACHE;
+-- DBCC DROPCLEANBUFFERS;
 
--- Procesar sub-lotes uno a uno
-WHILE @BatchNumber <= @MaxBatchGroup
-BEGIN
-BEGIN TRANSACTION;
-
--- MERGE para cada sub-lote
-MERGE [convenio].[Mae_Beneficio] AS TARGET
-USING (
+-- ✅ 10. VERIFICAR BLOQUEOS
 SELECT
-[idBeneficio], [idGrupoBeneficio], [idTipoCobertura], [idSubtipoCobertura], [codBeneficio], [descripcion], [desResumida],
-[codGrupoBeneficio], [codCobertura], [subtipoCobert], [estRegistro], [codSistema], [compania], [codUsuarioCreadorSistema],
-[fecCreacionSistema], [codUsuarioUpdateSistema], [fecUpdateSistema], [codUsuarioCreador], [fecCreacion], [codUsuarioUpdate],
-[fecUpdate]
-FROM #Batch
-WHERE BatchGroup = @BatchNumber
-) AS SOURCE
-ON TARGET.[idBeneficio] = SOURCE.[idBeneficio]
-
-WHEN MATCHED AND (
-TARGET.[idGrupoBeneficio] != SOURCE.[idGrupoBeneficio] OR
-TARGET.[idTipoCobertura] != SOURCE.[idTipoCobertura] OR
-TARGET.[idSubtipoCobertura] != SOURCE.[idSubtipoCobertura] OR
-TARGET.[codBeneficio] != SOURCE.[codBeneficio] OR
-TARGET.[descripcion] != SOURCE.[descripcion] OR
-TARGET.[desResumida] != SOURCE.[desResumida] OR
-TARGET.[codGrupoBeneficio] != SOURCE.[codGrupoBeneficio] OR
-TARGET.[codCobertura] != SOURCE.[codCobertura] OR
-TARGET.[subtipoCobert] != SOURCE.[subtipoCobert] OR
-TARGET.[estRegistro] != SOURCE.[estRegistro] OR
-TARGET.[codSistema] != SOURCE.[codSistema] OR
-TARGET.[compania] != SOURCE.[compania] OR
-TARGET.[codUsuarioCreadorSistema] != SOURCE.[codUsuarioCreadorSistema] OR
-TARGET.[fecCreacionSistema] != SOURCE.[fecCreacionSistema] OR
-TARGET.[codUsuarioUpdateSistema] != SOURCE.[codUsuarioUpdateSistema] OR
-TARGET.[fecUpdateSistema] != SOURCE.[fecUpdateSistema] OR
-TARGET.[codUsuarioCreador] != SOURCE.[codUsuarioCreador] OR
-TARGET.[fecCreacion] != SOURCE.[fecCreacion] OR
-TARGET.[codUsuarioUpdate] != SOURCE.[codUsuarioUpdate] OR
-TARGET.[fecUpdate] != SOURCE.[fecUpdate]
-) THEN
-UPDATE SET
-[idGrupoBeneficio] = SOURCE.[idGrupoBeneficio],
-[idTipoCobertura] = SOURCE.[idTipoCobertura],
-[idSubtipoCobertura] = SOURCE.[idSubtipoCobertura],
-[codBeneficio] = SOURCE.[codBeneficio],
-[descripcion] = SOURCE.[descripcion],
-[desResumida] = SOURCE.[desResumida],
-[codGrupoBeneficio] = SOURCE.[codGrupoBeneficio],
-[codCobertura] = SOURCE.[codCobertura],
-[subtipoCobert] = SOURCE.[subtipoCobert],
-[estRegistro] = SOURCE.[estRegistro],
-[codSistema] = SOURCE.[codSistema],
-[compania] = SOURCE.[compania],
-[codUsuarioCreadorSistema] = SOURCE.[codUsuarioCreadorSistema],
-[fecCreacionSistema] = SOURCE.[fecCreacionSistema],
-[codUsuarioUpdateSistema] = SOURCE.[codUsuarioUpdateSistema],
-[fecUpdateSistema] = SOURCE.[fecUpdateSistema],
-[codUsuarioCreador] = SOURCE.[codUsuarioCreador],
-[fecCreacion] = SOURCE.[fecCreacion],
-[codUsuarioUpdate] = SOURCE.[codUsuarioUpdate],
-[fecUpdate] = SOURCE.[fecUpdate]
-
-WHEN NOT MATCHED BY TARGET THEN
-INSERT (
-[idBeneficio], [idGrupoBeneficio], [idTipoCobertura], [idSubtipoCobertura], [codBeneficio], [descripcion], [desResumida],
-[codGrupoBeneficio], [codCobertura], [subtipoCobert], [estRegistro], [codSistema], [compania], [codUsuarioCreadorSistema],
-[fecCreacionSistema], [codUsuarioUpdateSistema], [fecUpdateSistema], [codUsuarioCreador], [fecCreacion], [codUsuarioUpdate],
-[fecUpdate]
-)
-VALUES (
-SOURCE.[idBeneficio], SOURCE.[idGrupoBeneficio], SOURCE.[idTipoCobertura], SOURCE.[idSubtipoCobertura], SOURCE.[codBeneficio],
-SOURCE.[descripcion], SOURCE.[desResumida], SOURCE.[codGrupoBeneficio], SOURCE.[codCobertura], SOURCE.[subtipoCobert],
-SOURCE.[estRegistro], SOURCE.[codSistema], SOURCE.[compania], SOURCE.[codUsuarioCreadorSistema], SOURCE.[fecCreacionSistema],
-SOURCE.[codUsuarioUpdateSistema], SOURCE.[fecUpdateSistema], SOURCE.[codUsuarioCreador], SOURCE.[fecCreacion], SOURCE.[codUsuarioUpdate],
-SOURCE.[fecUpdate]
-);
-
-COMMIT TRANSACTION;
-
--- Actualizar progreso
-SELECT @ProcessedRecords = @ProcessedRecords + COUNT(*)
-FROM #Batch WHERE BatchGroup = @BatchNumber;
-
-IF @EnableLogging = 1
-PRINT CONCAT('✅ Sub-lote ', @BatchNumber, '/', @MaxBatchGroup, ' completado. Procesados: ', @ProcessedRecords);
-
-SET @BatchNumber += 1;
-
--- Micro-pausa opcional
-IF @BatchNumber <= @MaxBatchGroup
-WAITFOR DELAY '00:00:00.010';
-END;
-
--- Limpieza final
-DROP TABLE #Batch;
-TRUNCATE TABLE [convenio].[Mae_Beneficio_Temp];
-IF @EnableLogging = 1
-PRINT '🧹 Tabla Mae_Beneficio_Temp limpiada con TRUNCATE.';
-
--- Log final
-DECLARE @Duration INT = DATEDIFF(MILLISECOND, @StartTime, SYSDATETIME());
-DECLARE @ResultMessage NVARCHAR(500) = CONCAT(
-'✅ MERGE completado. Total: ', @TotalRecords,
-', Tiempo: ', @Duration, ' ms',
-', Promedio: ', CASE WHEN @TotalRecords > 0 THEN @Duration/@TotalRecords ELSE 0 END, ' ms/reg'
-);
-PRINT @ResultMessage;
-
-SELECT
-@TotalRecords AS TotalRecords,
-@ProcessedRecords AS ProcessedRecords,
-@Duration AS DurationMs,
-CASE WHEN @TotalRecords > 0 THEN @Duration/@TotalRecords ELSE 0 END AS AvgMsPerRecord,
-'SUCCESS' AS Status;
-
-END TRY
-BEGIN CATCH
--- Manejo de errores
-IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-IF OBJECT_ID('tempdb..#Batch') IS NOT NULL DROP TABLE #Batch;
-
-SET @ErrorMessage = CONCAT('❌ Error en sub-lote ', @BatchNumber, ': ', ERROR_MESSAGE(), ' (Línea: ', ERROR_LINE(), ')');
-PRINT @ErrorMessage;
-
--- Registro de error (si existe tabla de log)
-IF OBJECT_ID('convenio.Mae_Log_Error_Merge') IS NOT NULL
-BEGIN
-INSERT INTO [convenio].[Mae_Log_Error_Merge] (
-[Procedimiento], [TablaDestino], [MensajeError], [LineaError],
-[RegistrosProcesados], [RegistrosTotales], [Estado]
-)
-VALUES (
-'sp_MergeProductosDatabricks', @TablaDestino, ERROR_MESSAGE(),
-ERROR_LINE(), @ProcessedRecords, @TotalRecords, 'ERROR'
-);
-END
-
--- Retorno en caso de error
-SELECT
-@ProcessedRecords AS ProcessedRecords,
-@TotalRecords AS TotalRecords,
-@ErrorMessage AS ErrorMessage,
-'ERROR' AS Status;
-
-THROW;
-END CATCH;
-END;
-
-
-*****
-
-CREATE OR ALTER PROCEDURE [convenio].[USP_PRO_DeltaBeneficio]
-@BatchSize INT = 500,
-@EnableLogging BIT = 0
-AS
-BEGIN
-SET NOCOUNT ON;
-SET XACT_ABORT ON;
-
-DECLARE @TotalRecords INT;
-DECLARE @ProcessedRecords INT = 0;
-DECLARE @BatchNumber INT = 1;
-DECLARE @StartTime DATETIME2 = SYSDATETIME();
-DECLARE @ErrorMessage NVARCHAR(4000);
-DECLARE @TablaDestino NVARCHAR(100) = 'Mae_Beneficio';
-
--- Contar registros válidos
-SELECT @TotalRecords = COUNT(*) FROM [convenio].[Mae_Beneficio_Temp] WHERE idBeneficio IS NOT NULL;
-
-IF @EnableLogging = 1
-PRINT CONCAT(' Iniciando MERGE de ', @TotalRecords, ' registros válidos...');
-
--- Validación de duplicados
-IF EXISTS (
-SELECT idBeneficio
-FROM [convenio].[Mae_Beneficio_Temp]
-WHERE idBeneficio IS NOT NULL
-GROUP BY idBeneficio
-HAVING COUNT(*) > 1
-)
-BEGIN
-RAISERROR('Error: Registros duplicados detectados en Mae_Beneficio_Temp.', 16, 1);
-RETURN;
-END;
-
-BEGIN TRY
-CREATE TABLE #Batch (
-idBeneficio NVARCHAR(100) NOT NULL,
-idGrupoBeneficio NVARCHAR(MAX) NULL,
-idTipoCobertura NVARCHAR(MAX) NULL,
-idSubtipoCobertura NVARCHAR(MAX) NULL,
-codBeneficio NVARCHAR(MAX) NULL,
-descripcion NVARCHAR(MAX) NULL,
-desResumida NVARCHAR(MAX) NULL,
-codGrupoBeneficio NVARCHAR(MAX) NULL,
-codCobertura NVARCHAR(MAX) NULL,
-subtipoCobert NVARCHAR(MAX) NULL,
-estRegistro NVARCHAR(MAX) NULL,
-codSistema NVARCHAR(MAX) NULL,
-compania NVARCHAR(MAX) NULL,
-codUsuarioCreadorSistema NVARCHAR(MAX) NULL,
-fecCreacionSistema DATETIME NULL,
-codUsuarioUpdateSistema NVARCHAR(MAX) NULL,
-fecUpdateSistema DATETIME NULL,
-codUsuarioCreador NVARCHAR(MAX) NULL,
-fecCreacion DATETIME NULL,
-codUsuarioUpdate NVARCHAR(MAX) NULL,
-fecUpdate DATETIME NULL,
-BatchGroup INT NOT NULL,
-PRIMARY KEY CLUSTERED (BatchGroup, idBeneficio)
-);
-
-INSERT INTO #Batch (
-idBeneficio, idGrupoBeneficio, idTipoCobertura, idSubtipoCobertura,
-codBeneficio, descripcion, desResumida, codGrupoBeneficio,
-codCobertura, subtipoCobert, estRegistro, codSistema,
-compania, codUsuarioCreadorSistema, fecCreacionSistema,
-codUsuarioUpdateSistema, fecUpdateSistema, codUsuarioCreador,
-fecCreacion, codUsuarioUpdate, fecUpdate, BatchGroup
-)
-SELECT
-idBeneficio, idGrupoBeneficio, idTipoCobertura, idSubtipoCobertura,
-codBeneficio, descripcion, desResumida, codGrupoBeneficio,
-codCobertura, subtipoCobert, estRegistro, codSistema,
-compania, codUsuarioCreadorSistema, fecCreacionSistema,
-codUsuarioUpdateSistema, fecUpdateSistema, codUsuarioCreador,
-fecCreacion, codUsuarioUpdate, fecUpdate,
-((ROW_NUMBER() OVER (ORDER BY idBeneficio) - 1) / @BatchSize) + 1
-FROM [convenio].[Mae_Beneficio_Temp]
-WHERE idBeneficio IS NOT NULL;
-
-DECLARE @MaxBatchGroup INT;
-SELECT @MaxBatchGroup = MAX(BatchGroup) FROM #Batch;
-
-WHILE @BatchNumber <= @MaxBatchGroup
-BEGIN
-BEGIN TRANSACTION;
-
-MERGE [convenio].[Mae_Beneficio] AS TARGET
-USING (
-SELECT * FROM #Batch WHERE BatchGroup = @BatchNumber
-) AS SOURCE
-ON TARGET.idBeneficio = SOURCE.idBeneficio
-
-WHEN MATCHED AND (
-ISNULL(TARGET.idGrupoBeneficio,'') != ISNULL(SOURCE.idGrupoBeneficio,'') OR
-ISNULL(TARGET.idTipoCobertura,'') != ISNULL(SOURCE.idTipoCobertura,'') OR
-ISNULL(TARGET.idSubtipoCobertura,'') != ISNULL(SOURCE.idSubtipoCobertura,'') OR
-ISNULL(TARGET.codBeneficio,'') != ISNULL(SOURCE.codBeneficio,'') OR
-ISNULL(TARGET.descripcion,'') != ISNULL(SOURCE.descripcion,'') OR
-ISNULL(TARGET.desResumida,'') != ISNULL(SOURCE.desResumida,'') OR
-ISNULL(TARGET.codGrupoBeneficio,'') != ISNULL(SOURCE.codGrupoBeneficio,'') OR
-ISNULL(TARGET.codCobertura,'') != ISNULL(SOURCE.codCobertura,'') OR
-ISNULL(TARGET.subtipoCobert,'') != ISNULL(SOURCE.subtipoCobert,'') OR
-ISNULL(TARGET.estRegistro,'') != ISNULL(SOURCE.estRegistro,'') OR
-ISNULL(TARGET.codSistema,'') != ISNULL(SOURCE.codSistema,'') OR
-ISNULL(TARGET.compania,'') != ISNULL(SOURCE.compania,'') OR
-ISNULL(TARGET.codUsuarioCreadorSistema,'') != ISNULL(SOURCE.codUsuarioCreadorSistema,'') OR
-ISNULL(TARGET.fecCreacionSistema,'1900-01-01') != ISNULL(SOURCE.fecCreacionSistema,'1900-01-01') OR
-ISNULL(TARGET.codUsuarioUpdateSistema,'') != ISNULL(SOURCE.codUsuarioUpdateSistema,'') OR
-ISNULL(TARGET.fecUpdateSistema,'1900-01-01') != ISNULL(SOURCE.fecUpdateSistema,'1900-01-01') OR
-ISNULL(TARGET.codUsuarioCreador,'') != ISNULL(SOURCE.codUsuarioCreador,'') OR
-ISNULL(TARGET.fecCreacion,'1900-01-01') != ISNULL(SOURCE.fecCreacion,'1900-01-01') OR
-ISNULL(TARGET.codUsuarioUpdate,'') != ISNULL(SOURCE.codUsuarioUpdate,'') OR
-ISNULL(TARGET.fecUpdate,'1900-01-01') != ISNULL(SOURCE.fecUpdate,'1900-01-01')
-) THEN
-UPDATE SET
-TARGET.idGrupoBeneficio = SOURCE.idGrupoBeneficio,
-TARGET.idTipoCobertura = SOURCE.idTipoCobertura,
-TARGET.idSubtipoCobertura = SOURCE.idSubtipoCobertura,
-TARGET.codBeneficio = SOURCE.codBeneficio,
-TARGET.descripcion = SOURCE.descripcion,
-TARGET.desResumida = SOURCE.desResumida,
-TARGET.codGrupoBeneficio = SOURCE.codGrupoBeneficio,
-TARGET.codCobertura = SOURCE.codCobertura,
-TARGET.subtipoCobert = SOURCE.subtipoCobert,
-TARGET.estRegistro = SOURCE.estRegistro,
-TARGET.codSistema = SOURCE.codSistema,
-TARGET.compania = SOURCE.compania,
-TARGET.codUsuarioCreadorSistema = SOURCE.codUsuarioCreadorSistema,
-TARGET.fecCreacionSistema = SOURCE.fecCreacionSistema,
-TARGET.codUsuarioUpdateSistema = SOURCE.codUsuarioUpdateSistema,
-TARGET.fecUpdateSistema = SOURCE.fecUpdateSistema,
-TARGET.codUsuarioCreador = SOURCE.codUsuarioCreador,
-TARGET.fecCreacion = SOURCE.fecCreacion,
-TARGET.codUsuarioUpdate = SOURCE.codUsuarioUpdate,
-TARGET.fecUpdate = SOURCE.fecUpdate
-
-WHEN NOT MATCHED BY TARGET THEN
-INSERT (
-idBeneficio, idGrupoBeneficio, idTipoCobertura, idSubtipoCobertura,
-codBeneficio, descripcion, desResumida, codGrupoBeneficio,
-codCobertura, subtipoCobert, estRegistro, codSistema,
-compania, codUsuarioCreadorSistema, fecCreacionSistema,
-codUsuarioUpdateSistema, fecUpdateSistema, codUsuarioCreador,
-fecCreacion, codUsuarioUpdate, fecUpdate
-)
-VALUES (
-SOURCE.idBeneficio, SOURCE.idGrupoBeneficio, SOURCE.idTipoCobertura, SOURCE.idSubtipoCobertura,
-SOURCE.codBeneficio, SOURCE.descripcion, SOURCE.desResumida, SOURCE.codGrupoBeneficio,
-SOURCE.codCobertura, SOURCE.subtipoCobert, SOURCE.estRegistro, SOURCE.codSistema,
-SOURCE.compania, SOURCE.codUsuarioCreadorSistema, SOURCE.fecCreacionSistema,
-SOURCE.codUsuarioUpdateSistema, SOURCE.fecUpdateSistema, SOURCE.codUsuarioCreador,
-SOURCE.fecCreacion, SOURCE.codUsuarioUpdate, SOURCE.fecUpdate
-);
-
-COMMIT TRANSACTION;
-
-SELECT @ProcessedRecords += COUNT(*) FROM #Batch WHERE BatchGroup = @BatchNumber;
-
-IF @EnableLogging = 1
-PRINT CONCAT(' Sub-lote ', @BatchNumber, '/', @MaxBatchGroup, ' completado. Procesados: ', @ProcessedRecords);
-
-SET @BatchNumber += 1;
-IF @BatchNumber <= @MaxBatchGroup
-WAITFOR DELAY '00:00:00.010';
-END;
-
-DROP TABLE #Batch;
-TRUNCATE TABLE [convenio].[Mae_Beneficio_Temp];
-
-IF @EnableLogging = 1
-PRINT ' Tabla Mae_Beneficio_Temp limpiada con TRUNCATE.';
-
-DECLARE @Duration INT = DATEDIFF(MILLISECOND, @StartTime, SYSDATETIME());
-
-PRINT CONCAT(' MERGE completado. Total: ', @TotalRecords, ', Tiempo: ', @Duration, ' ms, Promedio: ',
-CASE WHEN @TotalRecords > 0 THEN @Duration / @TotalRecords ELSE 0 END, ' ms/reg');
-
-SELECT
-@TotalRecords AS TotalRecords,
-@ProcessedRecords AS ProcessedRecords,
-@Duration AS DurationMs,
-CASE WHEN @TotalRecords > 0 THEN @Duration / @TotalRecords ELSE 0 END AS AvgMsPerRecord,
-'SUCCESS' AS Status;
-
-END TRY
-BEGIN CATCH
-IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-IF OBJECT_ID('tempdb..#Batch') IS NOT NULL DROP TABLE #Batch;
-
-SET @ErrorMessage = CONCAT(' Error en sub-lote ', @BatchNumber, ': ', ERROR_MESSAGE(), ' (Línea: ', ERROR_LINE(), ')');
-PRINT @ErrorMessage;
-
-IF OBJECT_ID('convenio.Mae_Log_Error_Merge') IS NOT NULL
-BEGIN
-INSERT INTO [convenio].[Mae_Log_Error_Merge] (
-Procedimiento, TablaDestino, MensajeError, LineaError,
-RegistrosProcesados, RegistrosTotales, Estado
-)
-VALUES (
-'USP_PRO_DeltaBeneficio', @TablaDestino, ERROR_MESSAGE(),
-ERROR_LINE(), @ProcessedRecords, @TotalRecords, 'ERROR'
-);
-END
-
-SELECT
-@ProcessedRecords AS ProcessedRecords,
-@TotalRecords AS TotalRecords,
-@ErrorMessage AS ErrorMessage,
-'ERROR' AS Status;
-
-THROW;
-END CATCH;
-END;
-
-
----
-INSERT INTO [convenio].[Mae_Beneficio_Temp] (
-idBeneficio, idGrupoBeneficio, idTipoCobertura, idSubtipoCobertura,
-codBeneficio, descripcion, desResumida, codGrupoBeneficio,
-codCobertura, subtipoCobert, estRegistro, codSistema, compania,
-codUsuarioCreadorSistema, fecCreacionSistema, codUsuarioUpdateSistema,
-fecUpdateSistema, codUsuarioCreador, fecCreacion, codUsuarioUpdate, fecUpdate
-)
-VALUES
-('B001', 'G01', 'T01', 'ST01', 'CB001', 'Beneficio 1', 'B1', 'CG01', 'CC01', 'SC01', 'A', 'SYS1', 'COMP1',
-'USR1', GETDATE(), NULL, NULL, 'USR1', GETDATE(), NULL, NULL),
-('B002', 'G02', 'T02', 'ST02', 'CB002', 'Beneficio 2', 'B2', 'CG02', 'CC02', 'SC02', 'A', 'SYS1', 'COMP1',
-'USR1', GETDATE(), NULL, NULL, 'USR1', GETDATE(), NULL, NULL);
-
-
-EXEC [convenio].[USP_PRO_DeltaBeneficio]
-@BatchSize = 5000,
-@EnableLogging = 1;
-
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [convenio].[Mae_BeneficioEPS](
-	[idBeneficioEps] [nvarchar](max) NULL,
-	[idBeneficio] [nvarchar](max) NULL,
-	[codBeneficio] [nvarchar](max) NULL,
-	[tipoGastoPrestacion] [nvarchar](max) NULL,
-	[indRequiereCartaGarantia] [nvarchar](max) NULL,
-	[indBeneficioAdicional] [nvarchar](max) NULL,
-	[indBeneficioPrincipal] [nvarchar](max) NULL,
-	[indProcEspeciales] [nvarchar](max) NULL,
-	[tipoPEAS] [nvarchar](max) NULL,
-	[indBeneficioComun] [nvarchar](max) NULL,
-	[codGrupoServicio] [int] NULL,
-	[indMostrarCG] [nvarchar](max) NULL,
-	[codSistema] [nvarchar](max) NULL,
-	[estRegistro] [nvarchar](max) NULL,
-	[codUsuarioCreadorSistema] [nvarchar](max) NULL,
-	[fecCreacionSistema] [datetime] NULL,
-	[codUsuarioUpdateSistema] [nvarchar](max) NULL,
-	[fecUpdateSistema] [datetime] NULL,
-	[codUsuarioCreador] [nvarchar](max) NULL,
-	[fecCreacion] [datetime] NULL
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-
-
-    [16:22, 30/5/2025] David 😎 Arquitecto Pacifico: CREATE TABLE [convenio].[Mae_BeneficioEPS_Temp] (
-[idBeneficioEps] NVARCHAR(MAX) NULL,
-[idBeneficio] NVARCHAR(MAX) NULL,
-[codBeneficio] NVARCHAR(MAX) NULL,
-[tipoGastoPrestacion] NVARCHAR(MAX) NULL,
-[indRequiereCartaGarantia] NVARCHAR(MAX) NULL,
-[indBeneficioAdicional] NVARCHAR(MAX) NULL,
-[indBeneficioPrincipal] NVARCHAR(MAX) NULL,
-[indProcEspeciales] NVARCHAR(MAX) NULL,
-[tipoPEAS] NVARCHAR(MAX) NULL,
-[indBeneficioComun] NVARCHAR(MAX) NULL,
-[codGrupoServicio] INT NULL,
-[indMostrarCG] NVARCHAR(MAX) NULL,
-[codSistema] NVARCHAR(MAX) NULL,
-[estRegistro] NVARCHAR(MAX) NULL,
-[codUsuarioCreadorSistema] NVARCHAR(MAX) NULL,
-[fecCreacionSistema] DATETIME NULL,
-[codUsuarioUpdateSistema] NVARCHAR(MAX) NU…
-[16:22, 30/5/2025] David 😎 Arquitecto Pacifico: CREATE OR ALTER PROCEDURE [convenio].[USP_PRO_DeltaBeneficioEPS]
-@BatchSize INT = 500,
-@EnableLogging BIT = 0
-AS
-BEGIN
-SET NOCOUNT ON;
-SET XACT_ABORT ON;
-
-DECLARE @TotalRecords INT;
-DECLARE @ProcessedRecords INT = 0;
-DECLARE @BatchNumber INT = 1;
-DECLARE @StartTime DATETIME2 = SYSDATETIME();
-DECLARE @ErrorMessage NVARCHAR(4000);
-DECLARE @TablaDestino NVARCHAR(100) = 'Mae_BeneficioEPS';
-
-SELECT @TotalRecords = COUNT(*) FROM [convenio].[Mae_BeneficioEPS_Temp] WHERE idBeneficioEps IS NOT NULL;
-
-IF @EnableLogging = 1
-PRINT CONCAT('🔄 Iniciando MERGE de ', @TotalRecords, ' registros válidos...');
-
-IF EXISTS (
-SELECT idBeneficioEps
-FROM [convenio].[Mae_BeneficioEPS_Temp]
-WHERE idBeneficioEps IS NOT NULL
-GROUP BY idBeneficioEps
-HAVING COUNT(*) > 1
-)
-BEGIN
-RAISERROR('Error: Registros duplicados detectados en Mae_BeneficioEPS_Temp.', 16, 1);
-RETURN;
-END;
-
-BEGIN TRY
-CREATE TABLE #Batch (
-idBeneficioEps NVARCHAR(MAX) NOT NULL,
-idBeneficio NVARCHAR(MAX) NULL,
-codBeneficio NVARCHAR(MAX) NULL,
-tipoGastoPrestacion NVARCHAR(MAX) NULL,
-indRequiereCartaGarantia NVARCHAR(MAX) NULL,
-indBeneficioAdicional NVARCHAR(MAX) NULL,
-indBeneficioPrincipal NVARCHAR(MAX) NULL,
-indProcEspeciales NVARCHAR(MAX) NULL,
-tipoPEAS NVARCHAR(MAX) NULL,
-indBeneficioComun NVARCHAR(MAX) NULL,
-codGrupoServicio INT NULL,
-indMostrarCG NVARCHAR(MAX) NULL,
-codSistema NVARCHAR(MAX) NULL,
-estRegistro NVARCHAR(MAX) NULL,
-codUsuarioCreadorSistema NVARCHAR(MAX) NULL,
-fecCreacionSistema DATETIME NULL,
-codUsuarioUpdateSistema NVARCHAR(MAX) NULL,
-fecUpdateSistema DATETIME NULL,
-codUsuarioCreador NVARCHAR(MAX) NULL,
-fecCreacion DATETIME NULL,
-BatchGroup INT NOT NULL,
-PRIMARY KEY CLUSTERED (BatchGroup, idBeneficioEps)
-);
-
-INSERT INTO #Batch (
-idBeneficioEps, idBeneficio, codBeneficio, tipoGastoPrestacion,
-indRequiereCartaGarantia, indBeneficioAdicional, indBeneficioPrincipal,
-indProcEspeciales, tipoPEAS, indBeneficioComun, codGrupoServicio,
-indMostrarCG, codSistema, estRegistro, codUsuarioCreadorSistema,
-fecCreacionSistema, codUsuarioUpdateSistema, fecUpdateSistema,
-codUsuarioCreador, fecCreacion, BatchGroup
-)
-SELECT
-idBeneficioEps, idBeneficio, codBeneficio, tipoGastoPrestacion,
-indRequiereCartaGarantia, indBeneficioAdicional, indBeneficioPrincipal,
-indProcEspeciales, tipoPEAS, indBeneficioComun, codGrupoServicio,
-indMostrarCG, codSistema, estRegistro, codUsuarioCreadorSistema,
-fecCreacionSistema, codUsuarioUpdateSistema, fecUpdateSistema,
-codUsuarioCreador, fecCreacion,
-((ROW_NUMBER() OVER (ORDER BY idBeneficioEps) - 1) / @BatchSize) + 1
-FROM [convenio].[Mae_BeneficioEPS_Temp]
-WHERE idBeneficioEps IS NOT NULL;
-
-DECLARE @MaxBatchGroup INT;
-SELECT @MaxBatchGroup = MAX(BatchGroup) FROM #Batch;
-
-WHILE @BatchNumber <= @MaxBatchGroup
-BEGIN
-BEGIN TRANSACTION;
-
-MERGE [convenio].[Mae_BeneficioEPS] AS TARGET
-USING (
-SELECT * FROM #Batch WHERE BatchGroup = @BatchNumber
-) AS SOURCE
-ON TARGET.idBeneficioEps = SOURCE.idBeneficioEps
-
-WHEN MATCHED AND (
-ISNULL(TARGET.idBeneficio,'') != ISNULL(SOURCE.idBeneficio,'') OR
-ISNULL(TARGET.codBeneficio,'') != ISNULL(SOURCE.codBeneficio,'') OR
-ISNULL(TARGET.tipoGastoPrestacion,'') != ISNULL(SOURCE.tipoGastoPrestacion,'') OR
-ISNULL(TARGET.indRequiereCartaGarantia,'') != ISNULL(SOURCE.indRequiereCartaGarantia,'') OR
-ISNULL(TARGET.indBeneficioAdicional,'') != ISNULL(SOURCE.indBeneficioAdicional,'') OR
-ISNULL(TARGET.indBeneficioPrincipal,'') != ISNULL(SOURCE.indBeneficioPrincipal,'') OR
-ISNULL(TARGET.indProcEspeciales,'') != ISNULL(SOURCE.indProcEspeciales,'') OR
-ISNULL(TARGET.tipoPEAS,'') != ISNULL(SOURCE.tipoPEAS,'') OR
-ISNULL(TARGET.indBeneficioComun,'') != ISNULL(SOURCE.indBeneficioComun,'') OR
-ISNULL(TARGET.codGrupoServicio, -1) != ISNULL(SOURCE.codGrupoServicio, -1) OR
-ISNULL(TARGET.indMostrarCG,'') != ISNULL(SOURCE.indMostrarCG,'') OR
-ISNULL(TARGET.codSistema,'') != ISNULL(SOURCE.codSistema,'') OR
-ISNULL(TARGET.estRegistro,'') != ISNULL(SOURCE.estRegistro,'') OR
-ISNULL(TARGET.codUsuarioCreadorSistema,'') != ISNULL(SOURCE.codUsuarioCreadorSistema,'') OR
-ISNULL(TARGET.fecCreacionSistema,'1900-01-01') != ISNULL(SOURCE.fecCreacionSistema,'1900-01-01') OR
-ISNULL(TARGET.codUsuarioUpdateSistema,'') != ISNULL(SOURCE.codUsuarioUpdateSistema,'') OR
-ISNULL(TARGET.fecUpdateSistema,'1900-01-01') != ISNULL(SOURCE.fecUpdateSistema,'1900-01-01') OR
-ISNULL(TARGET.codUsuarioCreador,'') != ISNULL(SOURCE.codUsuarioCreador,'') OR
-ISNULL(TARGET.fecCreacion,'1900-01-01') != ISNULL(SOURCE.fecCreacion,'1900-01-01')
-) THEN
-UPDATE SET
-TARGET.idBeneficio = SOURCE.idBeneficio,
-TARGET.codBeneficio = SOURCE.codBeneficio,
-TARGET.tipoGastoPrestacion = SOURCE.tipoGastoPrestacion,
-TARGET.indRequiereCartaGarantia = SOURCE.indRequiereCartaGarantia,
-TARGET.indBeneficioAdicional = SOURCE.indBeneficioAdicional,
-TARGET.indBeneficioPrincipal = SOURCE.indBeneficioPrincipal,
-TARGET.indProcEspeciales = SOURCE.indProcEspeciales,
-TARGET.tipoPEAS = SOURCE.tipoPEAS,
-TARGET.indBeneficioComun = SOURCE.indBeneficioComun,
-TARGET.codGrupoServicio = SOURCE.codGrupoServicio,
-TARGET.indMostrarCG = SOURCE.indMostrarCG,
-TARGET.codSistema = SOURCE.codSistema,
-TARGET.estRegistro = SOURCE.estRegistro,
-TARGET.codUsuarioCreadorSistema = SOURCE.codUsuarioCreadorSistema,
-TARGET.fecCreacionSistema = SOURCE.fecCreacionSistema,
-TARGET.codUsuarioUpdateSistema = SOURCE.codUsuarioUpdateSistema,
-TARGET.fecUpdateSistema = SOURCE.fecUpdateSistema,
-TARGET.codUsuarioCreador = SOURCE.codUsuarioCreador,
-TARGET.fecCreacion = SOURCE.fecCreacion
-
-WHEN NOT MATCHED BY TARGET THEN
-INSERT (
-idBeneficioEps, idBeneficio, codBeneficio, tipoGastoPrestacion,
-indRequiereCartaGarantia, indBeneficioAdicional, indBeneficioPrincipal,
-indProcEspeciales, tipoPEAS, indBeneficioComun, codGrupoServicio,
-indMostrarCG, codSistema, estRegistro, codUsuarioCreadorSistema,
-fecCreacionSistema, codUsuarioUpdateSistema, fecUpdateSistema,
-codUsuarioCreador, fecCreacion
-)
-VALUES (
-SOURCE.idBeneficioEps, SOURCE.idBeneficio, SOURCE.codBeneficio, SOURCE.tipoGastoPrestacion,
-SOURCE.indRequiereCartaGarantia, SOURCE.indBeneficioAdicional, SOURCE.indBeneficioPrincipal,
-SOURCE.indProcEspeciales, SOURCE.tipoPEAS, SOURCE.indBeneficioComun, SOURCE.codGrupoServicio,
-SOURCE.indMostrarCG, SOURCE.codSistema, SOURCE.estRegistro, SOURCE.codUsuarioCreadorSistema,
-SOURCE.fecCreacionSistema, SOURCE.codUsuarioUpdateSistema, SOURCE.fecUpdateSistema,
-SOURCE.codUsuarioCreador, SOURCE.fecCreacion
-);
-
-COMMIT TRANSACTION;
-
-SELECT @ProcessedRecords += COUNT(*) FROM #Batch WHERE BatchGroup = @BatchNumber;
-
-IF @EnableLogging = 1
-PRINT CONCAT('✅ Sub-lote ', @BatchNumber, '/', @MaxBatchGroup, ' completado. Procesados: ', @ProcessedRecords);
-
-SET @BatchNumber += 1;
-IF @BatchNumber <= @MaxBatchGroup
-WAITFOR DELAY '00:00:00.010';
-END;
-
-DROP TABLE #Batch;
-TRUNCATE TABLE [convenio].[Mae_BeneficioEPS_Temp];
-
-IF @EnableLogging = 1
-PRINT '🧹 Tabla Mae_BeneficioEPS_Temp limpiada con TRUNCATE.';
-
-DECLARE @Duration INT = DATEDIFF(MILLISECOND, @StartTime, SYSDATETIME());
-
-PRINT CONCAT('✅ MERGE completado. Total: ', @TotalRecords, ', Tiempo: ', @Duration, ' ms, Promedio: ',
-CASE WHEN @TotalRecords > 0 THEN @Duration / @TotalRecords ELSE 0 END, ' ms/reg');
-
-SELECT
-@TotalRecords AS TotalRecords,
-@ProcessedRecords AS ProcessedRecords,
-@Duration AS DurationMs,
-CASE WHEN @TotalRecords > 0 THEN @Duration / @TotalRecords ELSE 0 END AS AvgMsPerRecord,
-'SUCCESS' AS Status;
-
-END TRY
-BEGIN CATCH
-IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-IF OBJECT_ID('tempdb..#Batch') IS NOT NULL DROP TABLE #Batch;
-
-SET @ErrorMessage = CONCAT('❌ Error en sub-lote ', @BatchNumber, ': ', ERROR_MESSAGE(), ' (Línea: ', ERROR_LINE(), ')');
-PRINT @ErrorMessage;
-
-IF OBJECT_ID('convenio.Mae_Log_Error_Merge') IS NOT NULL
-BEGIN
-INSERT INTO [convenio].[Mae_Log_Error_Merge] (
-Procedimiento, TablaDestino, MensajeError, LineaError,
-RegistrosProcesados, RegistrosTotales, Estado
-)
-VALUES (
-'USP_PRO_DeltaBeneficioEPS', @TablaDestino, ERROR_MESSAGE(),
-ERROR_LINE(), @ProcessedRecords, @TotalRecords, 'ERROR'
-);
-END
-
-SELECT
-@ProcessedRecords AS ProcessedRecords,
-@TotalRecords AS TotalRecords,
-@ErrorMessage AS ErrorMessage,
-'ERROR' AS Status;
-
-THROW;
-END CATCH;
-END;
-
-//////////////////////////////
-
-[16:33, 30/5/2025] David 😎 Arquitecto Pacifico: CREATE OR ALTER PROCEDURE [convenio].[USP_PRO_DeltaBeneficioEPS]
-@BatchSize INT = 500,
-@EnableLogging BIT = 0
-AS
-BEGIN
-SET NOCOUNT ON;
-SET XACT_ABORT ON;
-
-DECLARE @TotalRecords INT;
-DECLARE @ProcessedRecords INT = 0;
-DECLARE @BatchNumber INT = 1;
-DECLARE @StartTime DATETIME2 = SYSDATETIME();
-DECLARE @ErrorMessage NVARCHAR(4000);
-DECLARE @TablaDestino NVARCHAR(100) = 'Mae_BeneficioEPS';
-
-SELECT @TotalRecords = COUNT(*) FROM [convenio].[Mae_BeneficioEPS_Temp] WHERE idBeneficioEps IS NOT NULL;
-
-IF @EnableLogging = 1
-PRINT CONCAT('🔄 Iniciando MERGE de ', @TotalRecords, ' registros válidos...');
-
-IF EXISTS (
-SELECT idBeneficioEps
-FROM [convenio].[Mae_BeneficioEPS_Temp]
-WHERE idBeneficioEps IS NOT NULL
-GROUP BY idBeneficioEps
-HAVING COUNT(*) > 1
-)
-BEGIN
-RAISERROR('Error: Registros duplicados detectados en Mae_BeneficioEPS_Temp.', 16, 1);
-RETURN;
-END;
-
-BEGIN TRY
-CREATE TABLE #Batch (
-idBeneficioEps NVARCHAR(100) NOT NULL,
-idBeneficio NVARCHAR(100) NULL,
-codBeneficio NVARCHAR(100) NULL,
-tipoGastoPrestacion NVARCHAR(100) NULL,
-indRequiereCartaGarantia NVARCHAR(10) NULL,
-indBeneficioAdicional NVARCHAR(10) NULL,
-indBeneficioPrincipal NVARCHAR(10) NULL,
-indProcEspeciales NVARCHAR(10) NULL,
-tipoPEAS NVARCHAR(50) NULL,
-indBeneficioComun NVARCHAR(10) NULL,
-codGrupoServicio INT NULL,
-indMostrarCG NVARCHAR(10) NULL,
-codSistema NVARCHAR(50) NULL,
-estRegistro NVARCHAR(10) NULL,
-codUsuarioCreadorSistema NVARCHAR(100) NULL,
-fecCreacionSistema DATETIME NULL,
-codUsuarioUpdateSistema NVARCHAR(100) NULL,
-fecUpdateSistema DATETIME NULL,
-codUsuarioCreador NVARCHAR(100) NULL,
-fecCreacion DATETIME NULL,
-BatchGroup INT NOT NULL,
-PRIMARY KEY CLUSTERED (BatchGroup, idBeneficioEps)
-);
-
-INSERT INTO #Batch (
-idBeneficioEps, idBeneficio, codBeneficio, tipoGastoPrestacion,
-indRequiereCartaGarantia, indBeneficioAdicional, indBeneficioPrincipal,
-indProcEspeciales, tipoPEAS, indBeneficioComun, codGrupoServicio,
-indMostrarCG, codSistema, estRegistro, codUsuarioCreadorSistema,
-fecCreacionSistema, codUsuarioUpdateSistema, fecUpdateSistema,
-codUsuarioCreador, fecCreacion, BatchGroup
-)
-SELECT
-idBeneficioEps, idBeneficio, codBeneficio, tipoGastoPrestacion,
-indRequiereCartaGarantia, indBeneficioAdicional, indBeneficioPrincipal,
-indProcEspeciales, tipoPEAS, indBeneficioComun, codGrupoServicio,
-indMostrarCG, codSistema, estRegistro, codUsuarioCreadorSistema,
-fecCreacionSistema, codUsuarioUpdateSistema, fecUpdateSistema,
-codUsuarioCreador, fecCreacion,
-((ROW_NUMBER() OVER (ORDER BY idBeneficioEps) - 1) / @BatchSize) + 1
-FROM [convenio].[Mae_BeneficioEPS_Temp]
-WHERE idBeneficioEps IS NOT NULL;
-
-DECLARE @MaxBatchGroup INT;
-SELECT @MaxBatchGroup = MAX(BatchGroup) FROM #Batch;
-
-WHILE @BatchNumber <= @MaxBatchGroup
-BEGIN
-BEGIN TRANSACTION;
-
-MERGE [convenio].[Mae_BeneficioEPS] AS TARGET
-USING (
-SELECT * FROM #Batch WHERE BatchGroup = @BatchNumber
-) AS SOURCE
-ON TARGET.idBeneficioEps = SOURCE.idBeneficioEps
-
-WHEN MATCHED AND (
-ISNULL(TARGET.idBeneficio,'') != ISNULL(SOURCE.idBeneficio,'') OR
-ISNULL(TARGET.codBeneficio,'') != ISNULL(SOURCE.codBeneficio,'') OR
-ISNULL(TARGET.tipoGastoPrestacion,'') != ISNULL(SOURCE.tipoGastoPrestacion,'') OR
-ISNULL(TARGET.indRequiereCartaGarantia,'') != ISNULL(SOURCE.indRequiereCartaGarantia,'') OR
-ISNULL(TARGET.indBeneficioAdicional,'') != ISNULL(SOURCE.indBeneficioAdicional,'') OR
-ISNULL(TARGET.indBeneficioPrincipal,'') != ISNULL(SOURCE.indBeneficioPrincipal,'') OR
-ISNULL(TARGET.indProcEspeciales,'') != ISNULL(SOURCE.indProcEspeciales,'') OR
-ISNULL(TARGET.tipoPEAS,'') != ISNULL(SOURCE.tipoPEAS,'') OR
-ISNULL(TARGET.indBeneficioComun,'') != ISNULL(SOURCE.indBeneficioComun,'') OR
-ISNULL(TARGET.codGrupoServicio, -1) != ISNULL(SOURCE.codGrupoServicio, -1) OR
-ISNULL(TARGET.indMostrarCG,'') != ISNULL(SOURCE.indMostrarCG,'') OR
-ISNULL(TARGET.codSistema,'') != ISNULL(SOURCE.codSistema,'') OR
-ISNULL(TARGET.estRegistro,'') != ISNULL(SOURCE.estRegistro,'') OR
-ISNULL(TARGET.codUsuarioCreadorSistema,'') != ISNULL(SOURCE.codUsuarioCreadorSistema,'') OR
-ISNULL(TARGET.fecCreacionSistema,'1900-01-01') != ISNULL(SOURCE.fecCreacionSistema,'1900-01-01') OR
-ISNULL(TARGET.codUsuarioUpdateSistema,'') != ISNULL(SOURCE.codUsuarioUpdateSistema,'') OR
-ISNULL(TARGET.fecUpdateSistema,'1900-01-01') != ISNULL(SOURCE.fecUpdateSistema,'1900-01-01') OR
-ISNULL(TARGET.codUsuarioCreador,'') != ISNULL(SOURCE.codUsuarioCreador,'') OR
-ISNULL(TARGET.fecCreacion,'1900-01-01') != ISNULL(SOURCE.fecCreacion,'1900-01-01')
-) THEN
-UPDATE SET
-TARGET.idBeneficio = SOURCE.idBeneficio,
-TARGET.codBeneficio = SOURCE.codBeneficio,
-TARGET.tipoGastoPrestacion = SOURCE.tipoGastoPrestacion,
-TARGET.indRequiereCartaGarantia = SOURCE.indRequiereCartaGarantia,
-TARGET.indBeneficioAdicional = SOURCE.indBeneficioAdicional,
-TARGET.indBeneficioPrincipal = SOURCE.indBeneficioPrincipal,
-TARGET.indProcEspeciales = SOURCE.indProcEspeciales,
-TARGET.tipoPEAS = SOURCE.tipoPEAS,
-TARGET.indBeneficioComun = SOURCE.indBeneficioComun,
-TARGET.codGrupoServicio = SOURCE.codGrupoServicio,
-TARGET.indMostrarCG = SOURCE.indMostrarCG,
-TARGET.codSistema = SOURCE.codSistema,
-TARGET.estRegistro = SOURCE.estRegistro,
-TARGET.codUsuarioCreadorSistema = SOURCE.codUsuarioCreadorSistema,
-TARGET.fecCreacionSistema = SOURCE.fecCreacionSistema,
-TARGET.codUsuarioUpdateSistema = SOURCE.codUsuarioUpdateSistema,
-TARGET.fecUpdateSistema = SOURCE.fecUpdateSistema,
-TARGET.codUsuarioCreador = SOURCE.codUsuarioCreador,
-TARGET.fecCreacion = SOURCE.fecCreacion
-
-WHEN NOT MATCHED BY TARGET THEN
-INSERT (
-idBeneficioEps, idBeneficio, codBeneficio, tipoGastoPrestacion,
-indRequiereCartaGarantia, indBeneficioAdicional, indBeneficioPrincipal,
-indProcEspeciales, tipoPEAS, indBeneficioComun, codGrupoServicio,
-indMostrarCG, codSistema, estRegistro, codUsuarioCreadorSistema,
-fecCreacionSistema, codUsuarioUpdateSistema, fecUpdateSistema,
-codUsuarioCreador, fecCreacion
-)
-VALUES (
-SOURCE.idBeneficioEps, SOURCE.idBeneficio, SOURCE.codBeneficio, SOURCE.tipoGastoPrestacion,
-SOURCE.indRequiereCartaGarantia, SOURCE.indBeneficioAdicional, SOURCE.indBeneficioPrincipal,
-SOURCE.indProcEspeciales, SOURCE.tipoPEAS, SOURCE.indBeneficioComun, SOURCE.codGrupoServicio,
-SOURCE.indMostrarCG, SOURCE.codSistema, SOURCE.estRegistro, SOURCE.codUsuarioCreadorSistema,
-SOURCE.fecCreacionSistema, SOURCE.codUsuarioUpdateSistema, SOURCE.fecUpdateSistema,
-SOURCE.codUsuarioCreador, SOURCE.fecCreacion
-);
-
-COMMIT TRANSACTION;
-
-SELECT @ProcessedRecords += COUNT(*) FROM #Batch WHERE BatchGroup = @BatchNumber;
-
-IF @EnableLogging = 1
-PRINT CONCAT('✅ Sub-lote ', @BatchNumber, '/', @MaxBatchGroup, ' completado. Procesados: ', @ProcessedRecords);
-
-SET @BatchNumber += 1;
-IF @BatchNumber <= @MaxBatchGroup
-WAITFOR DELAY '00:00:00.010';
-END;
-
-DROP TABLE #Batch;
-TRUNCATE TABLE [convenio].[Mae_BeneficioEPS_Temp];
-
-IF @EnableLogging = 1
-PRINT '🧹 Tabla Mae_BeneficioEPS_Temp limpiada con TRUNCATE.';
-
-DECLARE @Duration INT = DATEDIFF(MILLISECOND, @StartTime, SYSDATETIME());
-
-PRINT CONCAT('✅ MERGE completado. Total: ', @TotalRecords, ', Tiempo: ', @Duration, ' ms, Promedio: ',
-CASE WHEN @TotalRecords > 0 THEN @Duration / @TotalRecords ELSE 0 END, ' ms/reg');
-
-SELECT
-@TotalRecords AS TotalRecords,
-@ProcessedRecords AS ProcessedRecords,
-@Duration AS DurationMs,
-CASE WHEN @TotalRecords > 0 THEN @Duration / @TotalRecords ELSE 0 END AS AvgMsPerRecord,
-'SUCCESS' AS Status;
-
-END TRY
-BEGIN CATCH
-IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-IF OBJECT_ID('tempdb..#Batch') IS NOT NULL DROP TABLE #Batch;
-
-SET @ErrorMessage = CONCAT('❌ Error en sub-lote ', @BatchNumber, ': ', ERROR_MESSAGE(), ' (Línea: ', ERROR_LINE(), ')');
-PRINT @ErrorMessage;
-
-IF OBJECT_ID('convenio.Mae_Log_Error_Merge') IS NOT NULL
-BEGIN
-INSERT INTO [convenio].[Mae_Log_Error_Merge] (
-Procedimiento, TablaDestino, MensajeError, LineaError,
-RegistrosProcesados, RegistrosTotales, Estado
-)
-VALUES (
-'USP_PRO_DeltaBeneficioEPS', @TablaDestino, ERROR_MESSAGE(),
-ERROR_LINE(), @ProcessedRecords, @TotalRecords, 'ERROR'
-);
-END
-
-SELECT
-@ProcessedRecords AS ProcessedRecords,
-@TotalRecords AS TotalRecords,
-@ErrorMessage AS ErrorMessage,
-'ERROR' AS Status;
-
-THROW;
-END CATCH;
-END;
-[16:33, 30/5/2025] David 😎 Arquitecto Pacifico: INSERT INTO [convenio].[Mae_BeneficioEPS_Temp] (
-idBeneficioEps, idBeneficio, codBeneficio, tipoGastoPrestacion,
-indRequiereCartaGarantia, indBeneficioAdicional, indBeneficioPrincipal,
-indProcEspeciales, tipoPEAS, indBeneficioComun, codGrupoServicio,
-indMostrarCG, codSistema, estRegistro, codUsuarioCreadorSistema,
-fecCreacionSistema, codUsuarioUpdateSistema, fecUpdateSistema,
-codUsuarioCreador, fecCreacion
-)
-VALUES
-('B001', 'BEN001', 'CB001', 'AMBULATORIO', 'S', 'N', 'S', 'N', 'PEAS', 'N', 101, 'S', 'SYS1', 'A', 'USR1', GETDATE(), NULL, NULL, 'USR1', GETDATE()),
-('B002', 'BEN002', 'CB002', 'HOSPITALARIO', 'N', 'S', 'N', 'S', 'NOPEAS', 'S', 102, 'N', 'SYS1', 'A', 'USR2', GETDATE(), NULL, NULL, 'USR2', GETDATE());
-[16:33, 30/5/2025] David 😎 Arquitecto Pacifico: EXEC [convenio].[USP_PRO_DeltaBeneficioEPS]
-@BatchSize = 100,
-@EnableLogging = 1;        
-
-
-
-
-
-✅ 1. Usar SQL Server Profiler / Extended Events (si estás usando SSMS)
-Aunque SQL Server Profiler no está directamente soportado para Azure SQL Database, puedes usar Extended Events para capturar la ejecución de procedimientos.
-
-Ejemplo básico:
-sql
-Copiar
-Editar
--- Crear una sesión de Extended Events para capturar ejecuciones de procedimientos almacenados
-CREATE EVENT SESSION MonitorSPs
-ON DATABASE
-ADD EVENT sqlserver.sp_statement_completed
-(
-    ACTION (sqlserver.sql_text, sqlserver.client_hostname)
-)
-ADD TARGET package0.ring_buffer;
-GO
-
--- Iniciar la sesión
-ALTER EVENT SESSION MonitorSPs ON DATABASE STATE = START;
-Para ver los resultados:
-sql
-Copiar
-Editar
-SELECT 
-    event_data.value('(event/action[@name="sql_text"]/value)[1]', 'nvarchar(max)') AS sql_text,
-    event_data.value('(event/@name)[1]', 'nvarchar(100)') AS event_name
-FROM (
-    SELECT CAST(event_data AS XML) AS event_data
-    FROM sys.dm_xe_database_session_targets t
-    JOIN sys.dm_xe_database_sessions s ON t.event_session_address = s.address
-    WHERE s.name = 'MonitorSPs'
-) AS data;
-?????????????????????????????????????????????????????????
-
-
-
-CREATE OR ALTER PROCEDURE [convenio].[USP_PRO_DeltaBeneficioEPS]
-@BatchSize INT = 500,
-@EnableLogging BIT = 0
-AS
-BEGIN
-SET NOCOUNT ON;
-SET XACT_ABORT ON;
-
-DECLARE @TotalRecords INT;
-DECLARE @ProcessedRecords INT = 0;
-DECLARE @BatchNumber INT = 1;
-DECLARE @StartTime DATETIME2 = SYSDATETIME();
-DECLARE @ErrorMessage NVARCHAR(4000);
-DECLARE @TablaDestino NVARCHAR(100) = 'Mae_BeneficioEPS';
-
-SELECT @TotalRecords = COUNT(*) FROM [convenio].[Mae_BeneficioEPS_Temp] WHERE idBeneficioEps IS NOT NULL;
-
-IF @EnableLogging = 1
-PRINT CONCAT('🔄 Iniciando MERGE de ', @TotalRecords, ' registros válidos...');
-
-IF EXISTS (
-SELECT idBeneficioEps
-FROM [convenio].[Mae_BeneficioEPS_Temp]
-WHERE idBeneficioEps IS NOT NULL
-GROUP BY idBeneficioEps
-HAVING COUNT(*) > 1
-)
-BEGIN
-RAISERROR('Error: Registros duplicados detectados en Mae_BeneficioEPS_Temp.', 16, 1);
-RETURN;
-END;
-
-BEGIN TRY
-CREATE TABLE #Batch (
-idBeneficioEps NVARCHAR(100) NOT NULL,
-idBeneficio NVARCHAR(100) NULL,
-codBeneficio NVARCHAR(100) NULL,
-tipoGastoPrestacion NVARCHAR(100) NULL,
-indRequiereCartaGarantia NVARCHAR(10) NULL,
-indBeneficioAdicional NVARCHAR(10) NULL,
-indBeneficioPrincipal NVARCHAR(10) NULL,
-indProcEspeciales NVARCHAR(10) NULL,
-tipoPEAS NVARCHAR(50) NULL,
-indBeneficioComun NVARCHAR(10) NULL,
-codGrupoServicio INT NULL,
-indMostrarCG NVARCHAR(10) NULL,
-codSistema NVARCHAR(50) NULL,
-estRegistro NVARCHAR(10) NULL,
-codUsuarioCreadorSistema NVARCHAR(100) NULL,
-fecCreacionSistema DATETIME NULL,
-codUsuarioUpdateSistema NVARCHAR(100) NULL,
-fecUpdateSistema DATETIME NULL,
-codUsuarioCreador NVARCHAR(100) NULL,
-fecCreacion DATETIME NULL,
-BatchGroup INT NOT NULL,
-PRIMARY KEY CLUSTERED (BatchGroup, idBeneficioEps)
-);
-
-INSERT INTO #Batch (
-idBeneficioEps, idBeneficio, codBeneficio, tipoGastoPrestacion,
-indRequiereCartaGarantia, indBeneficioAdicional, indBeneficioPrincipal,
-indProcEspeciales, tipoPEAS, indBeneficioComun, codGrupoServicio,
-indMostrarCG, codSistema, estRegistro, codUsuarioCreadorSistema,
-fecCreacionSistema, codUsuarioUpdateSistema, fecUpdateSistema,
-codUsuarioCreador, fecCreacion, BatchGroup
-)
-SELECT
-idBeneficioEps, idBeneficio, codBeneficio, tipoGastoPrestacion,
-indRequiereCartaGarantia, indBeneficioAdicional, indBeneficioPrincipal,
-indProcEspeciales, tipoPEAS, indBeneficioComun, codGrupoServicio,
-indMostrarCG, codSistema, estRegistro, codUsuarioCreadorSistema,
-fecCreacionSistema, codUsuarioUpdateSistema, fecUpdateSistema,
-codUsuarioCreador, fecCreacion,
-((ROW_NUMBER() OVER (ORDER BY idBeneficioEps) - 1) / @BatchSize) + 1
-FROM [convenio].[Mae_BeneficioEPS_Temp]
-WHERE idBeneficioEps IS NOT NULL;
-
-DECLARE @MaxBatchGroup INT;
-SELECT @MaxBatchGroup = MAX(BatchGroup) FROM #Batch;
-
-WHILE @BatchNumber <= @MaxBatchGroup
-BEGIN
-BEGIN TRANSACTION;
-
-MERGE [convenio].[Mae_BeneficioEPS] AS TARGET
-USING (
-SELECT * FROM #Batch WHERE BatchGroup = @BatchNumber
-) AS SOURCE
-ON TARGET.idBeneficioEps = SOURCE.idBeneficioEps
-
-WHEN MATCHED AND (
-ISNULL(TARGET.idBeneficio,'') != ISNULL(SOURCE.idBeneficio,'') OR
-ISNULL(TARGET.codBeneficio,'') != ISNULL(SOURCE.codBeneficio,'') OR
-ISNULL(TARGET.tipoGastoPrestacion,'') != ISNULL(SOURCE.tipoGastoPrestacion,'') OR
-ISNULL(TARGET.indRequiereCartaGarantia,'') != ISNULL(SOURCE.indRequiereCartaGarantia,'') OR
-ISNULL(TARGET.indBeneficioAdicional,'') != ISNULL(SOURCE.indBeneficioAdicional,'') OR
-ISNULL(TARGET.indBeneficioPrincipal,'') != ISNULL(SOURCE.indBeneficioPrincipal,'') OR
-ISNULL(TARGET.indProcEspeciales,'') != ISNULL(SOURCE.indProcEspeciales,'') OR
-ISNULL(TARGET.tipoPEAS,'') != ISNULL(SOURCE.tipoPEAS,'') OR
-ISNULL(TARGET.indBeneficioComun,'') != ISNULL(SOURCE.indBeneficioComun,'') OR
-ISNULL(TARGET.codGrupoServicio, -1) != ISNULL(SOURCE.codGrupoServicio, -1) OR
-ISNULL(TARGET.indMostrarCG,'') != ISNULL(SOURCE.indMostrarCG,'') OR
-ISNULL(TARGET.codSistema,'') != ISNULL(SOURCE.codSistema,'') OR
-ISNULL(TARGET.estRegistro,'') != ISNULL(SOURCE.estRegistro,'') OR
-ISNULL(TARGET.codUsuarioCreadorSistema,'') != ISNULL(SOURCE.codUsuarioCreadorSistema,'') OR
-ISNULL(TARGET.fecCreacionSistema,'1900-01-01') != ISNULL(SOURCE.fecCreacionSistema,'1900-01-01') OR
-ISNULL(TARGET.codUsuarioUpdateSistema,'') != ISNULL(SOURCE.codUsuarioUpdateSistema,'') OR
-ISNULL(TARGET.fecUpdateSistema,'1900-01-01') != ISNULL(SOURCE.fecUpdateSistema,'1900-01-01') OR
-ISNULL(TARGET.codUsuarioCreador,'') != ISNULL(SOURCE.codUsuarioCreador,'') OR
-ISNULL(TARGET.fecCreacion,'1900-01-01') != ISNULL(SOURCE.fecCreacion,'1900-01-01')
-) THEN
-UPDATE SET
-TARGET.idBeneficio = SOURCE.idBeneficio,
-TARGET.codBeneficio = SOURCE.codBeneficio,
-TARGET.tipoGastoPrestacion = SOURCE.tipoGastoPrestacion,
-TARGET.indRequiereCartaGarantia = SOURCE.indRequiereCartaGarantia,
-TARGET.indBeneficioAdicional = SOURCE.indBeneficioAdicional,
-TARGET.indBeneficioPrincipal = SOURCE.indBeneficioPrincipal,
-TARGET.indProcEspeciales = SOURCE.indProcEspeciales,
-TARGET.tipoPEAS = SOURCE.tipoPEAS,
-TARGET.indBeneficioComun = SOURCE.indBeneficioComun,
-TARGET.codGrupoServicio = SOURCE.codGrupoServicio,
-TARGET.indMostrarCG = SOURCE.indMostrarCG,
-TARGET.codSistema = SOURCE.codSistema,
-TARGET.estRegistro = SOURCE.estRegistro,
-TARGET.codUsuarioCreadorSistema = SOURCE.codUsuarioCreadorSistema,
-TARGET.fecCreacionSistema = SOURCE.fecCreacionSistema,
-TARGET.codUsuarioUpdateSistema = SOURCE.codUsuarioUpdateSistema,
-TARGET.fecUpdateSistema = SOURCE.fecUpdateSistema,
-TARGET.codUsuarioCreador = SOURCE.codUsuarioCreador,
-TARGET.fecCreacion = SOURCE.fecCreacion
-
-WHEN NOT MATCHED BY TARGET THEN
-INSERT (
-idBeneficioEps, idBeneficio, codBeneficio, tipoGastoPrestacion,
-indRequiereCartaGarantia, indBeneficioAdicional, indBeneficioPrincipal,
-indProcEspeciales, tipoPEAS, indBeneficioComun, codGrupoServicio,
-indMostrarCG, codSistema, estRegistro, codUsuarioCreadorSistema,
-fecCreacionSistema, codUsuarioUpdateSistema, fecUpdateSistema,
-codUsuarioCreador, fecCreacion
-)
-VALUES (
-SOURCE.idBeneficioEps, SOURCE.idBeneficio, SOURCE.codBeneficio, SOURCE.tipoGastoPrestacion,
-SOURCE.indRequiereCartaGarantia, SOURCE.indBeneficioAdicional, SOURCE.indBeneficioPrincipal,
-SOURCE.indProcEspeciales, SOURCE.tipoPEAS, SOURCE.indBeneficioComun, SOURCE.codGrupoServicio,
-SOURCE.indMostrarCG, SOURCE.codSistema, SOURCE.estRegistro, SOURCE.codUsuarioCreadorSistema,
-SOURCE.fecCreacionSistema, SOURCE.codUsuarioUpdateSistema, SOURCE.fecUpdateSistema,
-SOURCE.codUsuarioCreador, SOURCE.fecCreacion
-);
-
-COMMIT TRANSACTION;
-
-SELECT @ProcessedRecords += COUNT(*) FROM #Batch WHERE BatchGroup = @BatchNumber;
-
-IF @EnableLogging = 1
-PRINT CONCAT('✅ Sub-lote ', @BatchNumber, '/', @MaxBatchGroup, ' completado. Procesados: ', @ProcessedRecords);
-
-SET @BatchNumber += 1;
-IF @BatchNumber <= @MaxBatchGroup
-WAITFOR DELAY '00:00:00.010';
-END;
-
-DROP TABLE #Batch;
-TRUNCATE TABLE [convenio].[Mae_BeneficioEPS_Temp];
-
-IF @EnableLogging = 1
-PRINT '🧹 Tabla Mae_BeneficioEPS_Temp limpiada con TRUNCATE.';
-
-DECLARE @Duration INT = DATEDIFF(MILLISECOND, @StartTime, SYSDATETIME());
-
-PRINT CONCAT('✅ MERGE completado. Total: ', @TotalRecords, ', Tiempo: ', @Duration, ' ms, Promedio: ',
-CASE WHEN @TotalRecords > 0 THEN @Duration / @TotalRecords ELSE 0 END, ' ms/reg');
-
-SELECT
-@TotalRecords AS TotalRecords,
-@ProcessedRecords AS ProcessedRecords,
-@Duration AS DurationMs,
-CASE WHEN @TotalRecords > 0 THEN @Duration / @TotalRecords ELSE 0 END AS AvgMsPerRecord,
-'SUCCESS' AS Status;
-
-END TRY
-BEGIN CATCH
-IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-IF OBJECT_ID('tempdb..#Batch') IS NOT NULL DROP TABLE #Batch;
-
-SET @ErrorMessage = CONCAT('❌ Error en sub-lote ', @BatchNumber, ': ', ERROR_MESSAGE(), ' (Línea: ', ERROR_LINE(), ')');
-PRINT @ErrorMessage;
-
-IF OBJECT_ID('convenio.Mae_Log_Error_Merge') IS NOT NULL
-BEGIN
-INSERT INTO [convenio].[Mae_Log_Error_Merge] (
-Procedimiento, TablaDestino, MensajeError, LineaError,
-RegistrosProcesados, RegistrosTotales, Estado
-)
-VALUES (
-'USP_PRO_DeltaBeneficioEPS', @TablaDestino, ERROR_MESSAGE(),
-ERROR_LINE(), @ProcessedRecords, @TotalRecords, 'ERROR'
-);
-END
-
-SELECT
-@ProcessedRecords AS ProcessedRecords,
-@TotalRecords AS TotalRecords,
-@ErrorMessage AS ErrorMessage,
-'ERROR' AS Status;
-
-THROW;
-END CATCH;
-END;
-
-e>\r\n\r\n                  </td>\r\n               </tr>\r\n            </table>\r\n\r\n            
-<br>\r\n\r\n            <b>Notes:</b> The current error page you are seeing can be replaced by a custom error page by modifying the &quot;defaultRedirect&quot; attribute of the application&#39;s &lt;customErrors&gt; configuration tag to point to a custom error page URL.<br><br>\r\n\r\n            <table width=100% bgcolor=\"#ffffcc\">\r\n               <tr>\r\n                  <td>\r\n               
-       <code><pre>\r\n\r\n&lt;!-- Web.Config Configuration File --&gt;\r\n\r\n&lt;configuration&gt;\r\n    &lt;system.web&gt;\r\n        &lt;customErrors mode=&quot;RemoteOnly&quot; defaultRedirect=&quot;mycustompage.htm&quot;/&gt;\r\n    &lt;/system.web&gt;\r\n&lt;/configuration&gt;</pre>             
-         </code>\r\n\r\n                  </td>\r\n               </tr>\r\n            </table>\r\n\r\n            <br>\r\n\r\n            </font>\r\n\r\n    </body>\r\n</html>\r\n","stack":"RestError: <!DOCTYPE html>\r\n<html>\r\n    <head>\r\n        <title>Runtime Error</title>\r\n        <meta name=\"viewport\" content=\"width=device-width\" />\r\n        <style>\r\n         body {font-family:\"Verdana\";font-weight:normal;font-size: .7em;color:black;} \r\n         p {font-family:\"Verdana\";font-weight:normal;color:black;margin-top: -5px}\r\n         b {font-family:\"Verdana\";font-weight:bold;color:black;margin-top: -5px}\r\n         H1 { font-family:\"Verdana\";font-weight:normal;font-size:18pt;color:red }\r\n         H2 { font-family:\"Verdana\";font-weight:normal;font-size:14pt;color:maroon }\r\n         pre {font-family:\"Consolas\",\"Lucida Console\",Monospace;font-size:11pt;margin:0;padding:0.5em;line-height:14pt}\r\n         .marker {font-weight: bold; color: black;text-decoration: none;}\r\n         .version {color: gray;}\r\n         .error {margin-bottom: 10px;}\r\n         .expandable { text-decoration:underline; font-weight:bold; color:navy; cursor:pointer; }\r\n         @media screen and (max-width: 639px) {\r\n          pre { width: 440px; overflow: auto; white-space: pre-wrap; word-wrap: break-word; }\r\n         }\r\n         @media screen and (max-width: 479px) {\r\n          pre { width: 280px; }\r\n         }\r\n        </style>\r\n    </head>\r\n\r\n    <body bgcolor=\"white\">\r\n\r\n            <span><H1>Server Error in '/' Application.<hr width=100% size=1 color=silver></H1>\r\n\r\n            <h2> <i>Runtime Error</i> </h2></span>\r\n\r\n            <font face=\"Arial, Helvetica, Geneva, SunSans-Regular, sans-serif \">\r\n\r\n            <b> Description: </b>An application error occurred on the server. The current custom error settings for this application prevent the details of the application error from being viewed remotely (for security reasons). It could, however, be viewed by browsers running on the local server machine.\r\n            <br><br>\r\n\r\n            <b>Details:</b> To enable the details of this specific error message to be viewable on remote machines, please create a &lt;customErrors&gt; tag within a &quot;web.config&quot; configuration file located in the root directory of the current web application. This &lt;customErrors&gt; tag should then have its &quot;mode&quot; attribute set to &quot;Off&quot;.<br><br>\r\n\r\n            <table width=100% bgcolor=\"#ffffcc\">\r\n               <tr>\r\n                  <td>\r\n            
-          <code><pre>\r\n\r\n&lt;!-- Web.Config Configuration File --&gt;\r\n\r\n&lt;configuration&gt;\r\n    &lt;system.web&gt;\r\n        &lt;customErrors mode=&quot;Off&quot;/&gt;\r\n    &lt;/system.web&gt;\r\n&lt;/configuration&gt;</pre>                      </code>\r\n\r\n                  </td>\r\n               </tr>\r\n            </table>\r\n\r\n            <br>\r\n\r\n            <b>Notes:</b> The current error page you are seeing can be replaced by a custom error page by modifying the &quot;defaultRedirect&quot; attribute of the application&#39;s &lt;customErrors&gt; configuration tag to point to a custom error page URL.<br><br>\r\n\r\n            <table width=100% bgcolor=\"#ffffcc\">\r\n               <tr>\r\n                  <td>\r\n                      <code><pre>\r\n\r\n&lt;!-- Web.Config Configuration File --&gt;\r\n\r\n&lt;configuration&gt;\r\n    &lt;system.web&gt;\r\n        &lt;customErrors mode=&quot;RemoteOnly&quot; defaultRedirect=&quot;mycustompage.htm&quot;/&gt;\r\n  
-  &lt;/system.web&gt;\r\n&lt;/configuration&gt;</pre>                      </code>\r\n\r\n           
-       </td>\r\n               </tr>\r\n            </table>\r\n\r\n            <br>\r\n\r\n         
-   </font>\r\n\r\n    </body>\r\n</html>\r\n\n    at handleErrorResponse (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaProveedor\\ne-ods-consultaProveedor\\node_modules\\@azure\\core-client\\src\\deserializationPolicy.ts:255:17)\n    at deserializeResponseBody (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaProveedor\\ne-ods-consultaProveedor\\node_modules\\@azure\\core-client\\src\\deserializationPolicy.ts:159:43)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)","name":"RestError","statusCode":400,"details":{}},"msg":"<!DOCTYPE html>\r\n<html>\r\n    <head>\r\n        <title>Runtime Error</title>\r\n        <meta name=\"viewport\" content=\"width=device-width\" />\r\n        <style>\r\n         body {font-family:\"Verdana\";font-weight:normal;font-size: .7em;color:black;} \r\n         p {font-family:\"Verdana\";font-weight:normal;color:black;margin-top: -5px}\r\n         b {font-family:\"Verdana\";font-weight:bold;color:black;margin-top: -5px}\r\n         H1 { font-family:\"Verdana\";font-weight:normal;font-size:18pt;color:red }\r\n         H2 { font-family:\"Verdana\";font-weight:normal;font-size:14pt;color:maroon }\r\n         pre {font-family:\"Consolas\",\"Lucida Console\",Monospace;font-size:11pt;margin:0;padding:0.5em;line-height:14pt}\r\n         .marker {font-weight: bold; color: black;text-decoration: none;}\r\n         .version {color: gray;}\r\n         .error {margin-bottom: 10px;}\r\n         .expandable { text-decoration:underline; font-weight:bold; color:navy; cursor:pointer; }\r\n         @media screen and (max-width: 639px) {\r\n          pre { width: 440px; overflow: auto; white-space: pre-wrap; word-wrap: break-word; }\r\n         }\r\n         @media screen and (max-width: 479px) {\r\n          pre { width: 280px; }\r\n         }\r\n        </style>\r\n    </head>\r\n\r\n    <body bgcolor=\"white\">\r\n\r\n            <span><H1>Server Error in '/' Application.<hr width=100% size=1 color=silver></H1>\r\n\r\n            <h2> <i>Runtime Error</i> </h2></span>\r\n\r\n            <font face=\"Arial, Helvetica, Geneva, SunSans-Regular, sans-serif \">\r\n\r\n            <b> Description: </b>An application error occurred on the server. The current custom error settings for this application prevent the details of the application error from being viewed remotely (for security reasons). It could, however, be viewed by browsers running on the local server machine.\r\n            <br><br>\r\n\r\n            <b>Details:</b> To enable the details of this specific error message to be viewable on remote machines, please create a &lt;customErrors&gt; tag within a &quot;web.config&quot; configuration file located in the root directory of the current web application. This &lt;customErrors&gt; tag should then have its &quot;mode&quot; attribute set to &quot;Off&quot;.<br><br>\r\n\r\n            <table width=100% bgcolor=\"#ffffcc\">\r\n               <tr>\r\n                  <td>\r\n                
-      <code><pre>\r\n\r\n&lt;!-- Web.Config Configuration File --&gt;\r\n\r\n&lt;configuration&gt;\r\n    &lt;system.web&gt;\r\n        &lt;customErrors mode=&quot;Off&quot;/&gt;\r\n    &lt;/system.web&gt;\r\n&lt;/configuration&gt;</pre>                      </code>\r\n\r\n                  </td>\r\n               </tr>\r\n            </table>\r\n\r\n            <br>\r\n\r\n            <b>Notes:</b> The current error page you are seeing can be replaced by a custom error page by modifying the &quot;defaultRedirect&quot; attribute of the application&#39;s &lt;customErrors&gt; configuration tag to point to a custom error page URL.<br><br>\r\n\r\n            <table width=100% bgcolor=\"#ffffcc\">\r\n               <tr>\r\n                  <td>\r\n                      <code><pre>\r\n\r\n&lt;!-- Web.Config Configuration File --&gt;\r\n\r\n&lt;configuration&gt;\r\n    &lt;system.web&gt;\r\n        &lt;customErrors mode=&quot;RemoteOnly&quot; defaultRedirect=&quot;mycustompage.htm&quot;/&gt;\r\n    &lt;/system.web&gt;\r\n&lt;/configuration&gt;</pre>                      </code>\r\n\r\n               
-   </td>\r\n               </tr>\r\n            </table>\r\n\r\n            <br>\r\n\r\n            </font>\r\n\r\n    </body>\r\n</html>\r\n"}
-{"level":50,"time":1748886255522,"pid":16224,"hostname":"vme1dessftvm02","context":"application insights","msg":"Application Insights is not initialized. Cannot track exception."}
-[Nest] 16224  - 06/02/2025, 12:44:25 PM     LOG [ProveedorController] [INICIO buscarProveedores] X-Correlation-Id: 1, X-Request-Id: 1
-[Nest] 16224  - 06/02/2025, 12:44:25 PM     LOG [ProveedorController] Aplicación: 1, Proceso: 1, Usuario: 11
-[Nest] 16224  - 06/02/2025, 12:44:25 PM     LOG [ProveedorController] Criterios de búsqueda: {"pageSize":20,"pageStartIndex":0}
-[Nest] 16224  - 06/02/2025, 12:44:25 PM     LOG [ProveedorSearchService] [INICIO searchProveedores] Filtros: {"pageSize":20,"pageStartIndex":0}
-[Nest] 16224  - 06/02/2025, 12:44:25 PM     LOG [ProveedorSearchService] Query generada: SELECT "p"."idProveedor" AS "p_idProveedor", "p"."idPersona" AS "p_idPersona", "p"."idTipoProveedor" AS "p_idTipoProveedor", "p"."codigoProveedor" AS "p_codigoProveedor", "p"."tipoProveedor" AS "p_tipoProveedor", "p"."indicadorCertificacion" AS "p_indicadorCertificacion", "p"."indicadorRedSelecta" AS "p_indicadorRedSelecta", "p"."estadoRegistro" AS "p_estadoRegistro", "p"."codigoUsuarioCreador" AS "p_codigoUsuarioCreador", "p"."fechaCreacion" AS "p_fechaCreacion", "p"."codigoUsuarioModificador" AS "p_codigoUsuarioModificador", "p"."fechaModificacion" AS "p_fechaModificacion", "tp"."IdTipoProveedor" AS "tp_IdTipoProveedor", "tp"."TipoProveedor" AS "tp_TipoProveedor", "tp"."DescripcionTipoProveedor" AS "tp_DescripcionTipoProveedor", "tp"."EstadoRegistro" AS "tp_EstadoRegistro", "tp"."CodigoUsuarioCreador" AS "tp_CodigoUsuarioCreador", "tp"."FechaCreacion" AS "tp_FechaCreacion", "tp"."CodigoUsuarioModificador" AS "tp_CodigoUsuarioModificador", "tp"."FechaModificacion" AS "tp_FechaModificacion", "tp"."CodigoUsuarioCreadorSistema" AS "tp_CodigoUsuarioCreadorSistema", "tp"."FechaCreacionSistema" AS "tp_FechaCreacionSistema", "tp"."CodigoUsuarioUpdateSistema" AS "tp_CodigoUsuarioUpdateSistema", "tp"."FechaUpdateSistema" AS "tp_FechaUpdateSistema" FROM "persona"."Mae_Proveedor" "p" LEFT JOIN "persona"."Tip_TipoProveedor" "tp" ON "tp"."IdTipoProveedor"="p"."idTipoProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="p"."idPersona"
-query: SELECT COUNT(DISTINCT("p"."idProveedor")) AS "cnt" FROM "persona"."Mae_Proveedor" "p" LEFT JOIN "persona"."Tip_TipoProveedor" "tp" ON "tp"."IdTipoProveedor"="p"."idTipoProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="p"."idPersona"
-[Nest] 16224  - 06/02/2025, 12:44:25 PM     LOG [ProveedorSearchService] Total de elementos encontrados: 3
-query: SELECT DISTINCT "distinctAlias"."p_idProveedor" AS "ids_p_idProveedor", "distinctAlias"."p_codigoProveedor" FROM (SELECT "p"."idProveedor" AS "p_idProveedor", "p"."idPersona" AS "p_idPersona", "p"."idTipoProveedor" AS "p_idTipoProveedor", "p"."codigoProveedor" AS "p_codigoProveedor", "p"."tipoProveedor" AS "p_tipoProveedor", "p"."indicadorCertificacion" AS "p_indicadorCertificacion", "p"."indicadorRedSelecta" AS "p_indicadorRedSelecta", "p"."estadoRegistro" AS "p_estadoRegistro", "p"."codigoUsuarioCreador" AS "p_codigoUsuarioCreador", "p"."fechaCreacion" AS "p_fechaCreacion", "p"."codigoUsuarioModificador" AS "p_codigoUsuarioModificador", "p"."fechaModificacion" AS "p_fechaModificacion", "tp"."IdTipoProveedor" AS "tp_IdTipoProveedor", "tp"."TipoProveedor" AS "tp_TipoProveedor", "tp"."DescripcionTipoProveedor" AS "tp_DescripcionTipoProveedor", "tp"."EstadoRegistro" AS "tp_EstadoRegistro", "tp"."CodigoUsuarioCreador" AS "tp_CodigoUsuarioCreador", "tp"."FechaCreacion" AS "tp_FechaCreacion", "tp"."CodigoUsuarioModificador" AS "tp_CodigoUsuarioModificador", "tp"."FechaModificacion" AS "tp_FechaModificacion", "tp"."CodigoUsuarioCreadorSistema" AS "tp_CodigoUsuarioCreadorSistema", "tp"."FechaCreacionSistema" AS "tp_FechaCreacionSistema", "tp"."CodigoUsuarioUpdateSistema" AS "tp_CodigoUsuarioUpdateSistema", "tp"."FechaUpdateSistema" AS "tp_FechaUpdateSistema" FROM "persona"."Mae_Proveedor" "p" LEFT JOIN "persona"."Tip_TipoProveedor" "tp" ON "tp"."IdTipoProveedor"="p"."idTipoProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="p"."idPersona") "distinctAlias" ORDER BY "distinctAlias"."p_codigoProveedor" ASC, "p_idProveedor" ASC OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY
-query: SELECT "p"."idProveedor" AS "p_idProveedor", "p"."idPersona" AS "p_idPersona", "p"."idTipoProveedor" AS "p_idTipoProveedor", "p"."codigoProveedor" AS "p_codigoProveedor", "p"."tipoProveedor" AS "p_tipoProveedor", "p"."indicadorCertificacion" AS "p_indicadorCertificacion", "p"."indicadorRedSelecta" AS "p_indicadorRedSelecta", "p"."estadoRegistro" AS "p_estadoRegistro", "p"."codigoUsuarioCreador" AS "p_codigoUsuarioCreador", "p"."fechaCreacion" AS "p_fechaCreacion", "p"."codigoUsuarioModificador" AS "p_codigoUsuarioModificador", "p"."fechaModificacion" AS "p_fechaModificacion", "tp"."IdTipoProveedor" AS "tp_IdTipoProveedor", "tp"."TipoProveedor" AS "tp_TipoProveedor", "tp"."DescripcionTipoProveedor" AS "tp_DescripcionTipoProveedor", "tp"."EstadoRegistro" AS "tp_EstadoRegistro", "tp"."CodigoUsuarioCreador" AS "tp_CodigoUsuarioCreador", "tp"."FechaCreacion" AS "tp_FechaCreacion", "tp"."CodigoUsuarioModificador" AS "tp_CodigoUsuarioModificador", "tp"."FechaModificacion" AS "tp_FechaModificacion", "tp"."CodigoUsuarioCreadorSistema" AS "tp_CodigoUsuarioCreadorSistema", "tp"."FechaCreacionSistema" AS "tp_FechaCreacionSistema", "tp"."CodigoUsuarioUpdateSistema" AS "tp_CodigoUsuarioUpdateSistema", "tp"."FechaUpdateSistema" AS "tp_FechaUpdateSistema" FROM "persona"."Mae_Proveedor" "p" LEFT JOIN "persona"."Tip_TipoProveedor" "tp" ON "tp"."IdTipoProveedor"="p"."idTipoProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="p"."idPersona" WHERE "p"."idProveedor" IN (@0, @1, @2) ORDER BY "p"."codigoProveedor" ASC -- PARAMETERS: ["4ED8392B-0C66-4581-B7A0-BF43D6970F98","5F9F7C59-57EF-45BF-9C50-19DDDA840BC0","8A12AF06-D578-424D-B6FF-70FC4E537364"]
-[Nest] 16224  - 06/02/2025, 12:44:25 PM     LOG [ProveedorSearchService] IDs de proveedores encontrados: 4ED8392B-0C66-4581-B7A0-BF43D6970F98, 5F9F7C59-57EF-45BF-9C50-19DDDA840BC0, 8A12AF06-D578-424D-B6FF-70FC4E537364
-[Nest] 16224  - 06/02/2025, 12:44:25 PM     LOG [ProveedorSearchService] Códigos de proveedores encontrados: 10001, 10002, 10003
-[Nest] 16224  - 06/02/2025, 12:44:25 PM     LOG [ProveedorSearchService] [FIN searchProveedores] Tiempo total: 165ms, Proveedores encontrados: 3      
-[Nest] 16224  - 06/02/2025, 12:44:25 PM     LOG [ProveedorController] [FIN buscarProveedores] X-Correlation-Id: 1, Tiempo total: 167ms
-[Nest] 16224  - 06/02/2025, 12:44:25 PM     LOG [ProveedorController] Proveedores encontrados: 3
-{"level":30,"time":1748886265996,"pid":16224,"hostname":"vme1dessftvm02","req":{"method":"POST","url":"/ms-ne-consulta-personaProveedor-eps/persona/v1.0.0/proveedor","X-Correlation-Id":"1","X-Request-Id":"1","usuarioAplicacion":"11","nombreAplicacion":"1","procesoNegocio":"1"},"res":{"statusCode":201},"responseTime":191,"msg":"request completed"}
-^C^C^CTerminate batch job (Y/N)? 
-^C
-PS C:\Users\ext.jbecerrak.softte\Desktop\srv-ms-sm-ne-ods
-
-
-
-
-*******************************************************************************
-query: SELECT COUNT(DISTINCT("sucursal"."IdSucursal")) AS "cnt" FROM "persona"."Mae_Sucursal" "sucursal" LEFT JOIN "persona"."Mae_Proveedor" "proveedor" ON "proveedor"."idProveedor"="sucursal"."IdProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="proveedor"."idPersona"[Nest] 11324  - 06/02/2025, 3:02:04 PM     LOG [SucursalSearchService] Total de elementos encontrados: 4
-query: SELECT DISTINCT "distinctAlias"."sucursal_IdSucursal" AS "ids_sucursal_IdSucursal", "distinctAlias"."sucursal_CodigoProveedor", "distinctAlias"."sucursal_NumeroSucursalProveedor" FROM (SELECT "sucursal"."IdSucursal" AS "sucursal_IdSucursal", "sucursal"."IdProveedor" AS "sucursal_IdProveedor", "sucursal"."CodigoProveedor" AS "sucursal_CodigoProveedor", "sucursal"."NumeroSucursalProveedor" AS "sucursal_NumeroSucursalProveedor", "sucursal"."DescripcionSucursal" AS "sucursal_DescripcionSucursal", "sucursal"."IndicadorPrincipalSucursal" AS "sucursal_IndicadorPrincipalSucursal", "sucursal"."CategoriaSucursal" AS "sucursal_CategoriaSucursal", "sucursal"."CodigoSucursalSeps" AS "sucursal_CodigoSucursalSeps", "sucursal"."RegistroSeps" AS "sucursal_RegistroSeps", "sucursal"."IndicadorEPS" AS "sucursal_IndicadorEPS", "sucursal"."CodigoSeps" AS "sucursal_CodigoSeps", "sucursal"."CodigoClinicaEps" AS "sucursal_CodigoClinicaEps", "sucursal"."IndicadorRedSelecta" AS "sucursal_IndicadorRedSelecta", "sucursal"."IndicadorExoneracionIgv" AS "sucursal_IndicadorExoneracionIgv", "sucursal"."IndicadorDetraccion" AS "sucursal_IndicadorDetraccion", "sucursal"."TipoInstitucion" AS "sucursal_TipoInstitucion", "sucursal"."EstadoRegistro" AS "sucursal_EstadoRegistro", "sucursal"."CodigoUsuarioCreador" AS "sucursal_CodigoUsuarioCreador", "sucursal"."FechaCreacion" AS "sucursal_FechaCreacion", "sucursal"."CodigoUsuarioModificador" AS "sucursal_CodigoUsuarioModificador", "sucursal"."FechaModificacion" AS "sucursal_FechaModificacion", "sucursal"."CodigoUsuarioCreadorSistema" AS "sucursal_CodigoUsuarioCreadorSistema", "sucursal"."FechaCreacionSistema" AS "sucursal_FechaCreacionSistema", "sucursal"."CodigoUsuarioUpdateSistema" AS "sucursal_CodigoUsuarioUpdateSistema", "sucursal"."FechaUpdateSistema" AS "sucursal_FechaUpdateSistema", "proveedor"."idProveedor" AS "proveedor_idProveedor", "proveedor"."idPersona" AS "proveedor_idPersona", "proveedor"."idTipoProveedor" AS "proveedor_idTipoProveedor", "proveedor"."codigoProveedor" AS "proveedor_codigoProveedor", "proveedor"."tipoProveedor" AS "proveedor_tipoProveedor", "proveedor"."indicadorCertificacion" AS "proveedor_indicadorCertificacion", "proveedor"."indicadorRedSelecta" AS "proveedor_indicadorRedSelecta", "proveedor"."estadoRegistro" AS "proveedor_estadoRegistro", "proveedor"."codigoUsuarioCreador" AS "proveedor_codigoUsuarioCreador", "proveedor"."fechaCreacion" AS "proveedor_fechaCreacion", "proveedor"."codigoUsuarioModificador" AS "proveedor_codigoUsuarioModificador", "proveedor"."fechaModificacion" AS "proveedor_fechaModificacion" FROM "persona"."Mae_Sucursal" "sucursal" LEFT JOIN "persona"."Mae_Proveedor" "proveedor" ON "proveedor"."idProveedor"="sucursal"."IdProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="proveedor"."idPersona") "distinctAlias" ORDER BY "distinctAlias"."sucursal_CodigoProveedor" ASC, "distinctAlias"."sucursal_NumeroSucursalProveedor" ASC, "sucursal_IdSucursal" ASC OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY
-query: SELECT "sucursal"."IdSucursal" AS "sucursal_IdSucursal", "sucursal"."IdProveedor" AS "sucursal_IdProveedor", "sucursal"."CodigoProveedor" AS "sucursal_CodigoProveedor", "sucursal"."NumeroSucursalProveedor" AS "sucursal_NumeroSucursalProveedor", "sucursal"."DescripcionSucursal" AS "sucursal_DescripcionSucursal", "sucursal"."IndicadorPrincipalSucursal" AS "sucursal_IndicadorPrincipalSucursal", "sucursal"."CategoriaSucursal" AS "sucursal_CategoriaSucursal", "sucursal"."CodigoSucursalSeps" AS "sucursal_CodigoSucursalSeps", "sucursal"."RegistroSeps" AS "sucursal_RegistroSeps", "sucursal"."IndicadorEPS" AS "sucursal_IndicadorEPS", "sucursal"."CodigoSeps" AS "sucursal_CodigoSeps", "sucursal"."CodigoClinicaEps" AS "sucursal_CodigoClinicaEps", "sucursal"."IndicadorRedSelecta" AS "sucursal_IndicadorRedSelecta", "sucursal"."IndicadorExoneracionIgv" AS "sucursal_IndicadorExoneracionIgv", "sucursal"."IndicadorDetraccion" AS "sucursal_IndicadorDetraccion", "sucursal"."TipoInstitucion" AS "sucursal_TipoInstitucion", "sucursal"."EstadoRegistro" AS "sucursal_EstadoRegistro", "sucursal"."CodigoUsuarioCreador" AS "sucursal_CodigoUsuarioCreador", "sucursal"."FechaCreacion" AS "sucursal_FechaCreacion", "sucursal"."CodigoUsuarioModificador" AS "sucursal_CodigoUsuarioModificador", "sucursal"."FechaModificacion" AS "sucursal_FechaModificacion", "sucursal"."CodigoUsuarioCreadorSistema" AS "sucursal_CodigoUsuarioCreadorSistema", "sucursal"."FechaCreacionSistema" AS "sucursal_FechaCreacionSistema", "sucursal"."CodigoUsuarioUpdateSistema" AS "sucursal_CodigoUsuarioUpdateSistema", "sucursal"."FechaUpdateSistema" AS "sucursal_FechaUpdateSistema", "proveedor"."idProveedor" AS "proveedor_idProveedor", "proveedor"."idPersona" AS "proveedor_idPersona", "proveedor"."idTipoProveedor" AS "proveedor_idTipoProveedor", "proveedor"."codigoProveedor" AS "proveedor_codigoProveedor", "proveedor"."tipoProveedor" AS "proveedor_tipoProveedor", "proveedor"."indicadorCertificacion" AS "proveedor_indicadorCertificacion", "proveedor"."indicadorRedSelecta" AS "proveedor_indicadorRedSelecta", "proveedor"."estadoRegistro" AS "proveedor_estadoRegistro", "proveedor"."codigoUsuarioCreador" AS "proveedor_codigoUsuarioCreador", "proveedor"."fechaCreacion" AS "proveedor_fechaCreacion", "proveedor"."codigoUsuarioModificador" AS "proveedor_codigoUsuarioModificador", "proveedor"."fechaModificacion" AS "proveedor_fechaModificacion" FROM "persona"."Mae_Sucursal" "sucursal" LEFT JOIN "persona"."Mae_Proveedor" "proveedor" ON "proveedor"."idProveedor"="sucursal"."IdProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="proveedor"."idPersona" WHERE "sucursal"."IdSucursal" IN (@0, @1, @2, @3) ORDER BY "sucursal"."CodigoProveedor" ASC, "sucursal"."NumeroSucursalProveedor" ASC -- PARAMETERS: ["C0D68DD2-42B5-441A-A9AC-59E46CF2A960","06EFA083-D1D1-4361-9FEA-FBE3026E1F1C","DD540CF8-B2DC-4AB7-8625-A38E0E50BAEA","B52B6AD8-E19C-405A-9B03-94C38980571D"]
-[Nest] 11324  - 06/02/2025, 3:02:04 PM     LOG [SucursalSearchService] IDs de sucursales encontradas: C0D68DD2-42B5-441A-A9AC-59E46CF2A960, 06EFA083-D1D1-4361-9FEA-FBE3026E1F1C, DD540CF8-B2DC-4AB7-8625-A38E0E50BAEA, B52B6AD8-E19C-405A-9B03-94C38980571D
-[Nest] 11324  - 06/02/2025, 3:02:04 PM     LOG [SucursalSearchService] [FIN searchSucursales] Tiempo total: 428ms, Sucursales encontradas: 4
-[Nest] 11324  - 06/02/2025, 3:02:04 PM     LOG [SucursalController] [FIN buscarSucursales] X-Correlation-Id: 1, Tiempo total: 478ms
-[Nest] 11324  - 06/02/2025, 3:02:04 PM     LOG [SucursalController] Sucursales encontradas: 4
-{"level":30,"time":1748894525147,"pid":11324,"hostname":"vme1dessftvm02","req":{"method":"POST","url":"/ms-ne-consulta-personaProveedor-eps/persona/v1.0.0/sucursal","X-Correlation-Id":"1","X-Request-Id":"1","usuarioAplicacion":"11","nombreAplicacion":"1","procesoNegocio":"1"},"res":{"statusCode":201},"responseTime":802,"msg":"request completed"}
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalController] [INICIO buscarSucursales] X-Correlation-Id: 1, X-Request-Id: 1
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalController] Aplicación: 1, Proceso: 1, Usuario: 11
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalController] Criterios de búsqueda: {}
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalSearchService] [INICIO searchSucursales] Filtros: {}
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalSearchService] Query generada: SELECT "sucursal"."IdSucursal" AS "sucursal_IdSucursal", "sucursal"."IdProveedor" AS "sucursal_IdProveedor", "sucursal"."CodigoProveedor" AS "sucursal_CodigoProveedor", "sucursal"."NumeroSucursalProveedor" AS "sucursal_NumeroSucursalProveedor", "sucursal"."DescripcionSucursal" AS "sucursal_DescripcionSucursal", "sucursal"."IndicadorPrincipalSucursal" AS "sucursal_IndicadorPrincipalSucursal", "sucursal"."CategoriaSucursal" AS "sucursal_CategoriaSucursal", "sucursal"."CodigoSucursalSeps" AS "sucursal_CodigoSucursalSeps", "sucursal"."RegistroSeps" AS "sucursal_RegistroSeps", "sucursal"."IndicadorEPS" AS "sucursal_IndicadorEPS", "sucursal"."CodigoSeps" AS "sucursal_CodigoSeps", "sucursal"."CodigoClinicaEps" AS "sucursal_CodigoClinicaEps", "sucursal"."IndicadorRedSelecta" AS "sucursal_IndicadorRedSelecta", "sucursal"."IndicadorExoneracionIgv" AS "sucursal_IndicadorExoneracionIgv", "sucursal"."IndicadorDetraccion" AS "sucursal_IndicadorDetraccion", "sucursal"."TipoInstitucion" AS "sucursal_TipoInstitucion", "sucursal"."EstadoRegistro" AS "sucursal_EstadoRegistro", "sucursal"."CodigoUsuarioCreador" AS "sucursal_CodigoUsuarioCreador", "sucursal"."FechaCreacion" AS "sucursal_FechaCreacion", "sucursal"."CodigoUsuarioModificador" AS "sucursal_CodigoUsuarioModificador", "sucursal"."FechaModificacion" AS "sucursal_FechaModificacion", "sucursal"."CodigoUsuarioCreadorSistema" AS "sucursal_CodigoUsuarioCreadorSistema", "sucursal"."FechaCreacionSistema" AS "sucursal_FechaCreacionSistema", "sucursal"."CodigoUsuarioUpdateSistema" AS "sucursal_CodigoUsuarioUpdateSistema", "sucursal"."FechaUpdateSistema" AS "sucursal_FechaUpdateSistema", "proveedor"."idProveedor" AS "proveedor_idProveedor", "proveedor"."idPersona" AS "proveedor_idPersona", "proveedor"."idTipoProveedor" AS "proveedor_idTipoProveedor", "proveedor"."codigoProveedor" AS "proveedor_codigoProveedor", "proveedor"."tipoProveedor" AS "proveedor_tipoProveedor", "proveedor"."indicadorCertificacion" AS "proveedor_indicadorCertificacion", "proveedor"."indicadorRedSelecta" AS "proveedor_indicadorRedSelecta", "proveedor"."estadoRegistro" AS "proveedor_estadoRegistro", "proveedor"."codigoUsuarioCreador" AS "proveedor_codigoUsuarioCreador", "proveedor"."fechaCreacion" AS "proveedor_fechaCreacion", "proveedor"."codigoUsuarioModificador" AS "proveedor_codigoUsuarioModificador", "proveedor"."fechaModificacion" AS "proveedor_fechaModificacion" FROM "persona"."Mae_Sucursal" "sucursal" LEFT JOIN "persona"."Mae_Proveedor" "proveedor" ON "proveedor"."idProveedor"="sucursal"."IdProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="proveedor"."idPersona"
-query: SELECT COUNT(DISTINCT("sucursal"."IdSucursal")) AS "cnt" FROM "persona"."Mae_Sucursal" "sucursal" LEFT JOIN "persona"."Mae_Proveedor" "proveedor" ON "proveedor"."idProveedor"="sucursal"."IdProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="proveedor"."idPersona"[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalSearchService] Total de elementos encontrados: 4
-query: SELECT DISTINCT "distinctAlias"."sucursal_IdSucursal" AS "ids_sucursal_IdSucursal", "distinctAlias"."sucursal_CodigoProveedor", "distinctAlias"."sucursal_NumeroSucursalProveedor" FROM (SELECT "sucursal"."IdSucursal" AS "sucursal_IdSucursal", "sucursal"."IdProveedor" AS "sucursal_IdProveedor", "sucursal"."CodigoProveedor" AS "sucursal_CodigoProveedor", "sucursal"."NumeroSucursalProveedor" AS "sucursal_NumeroSucursalProveedor", "sucursal"."DescripcionSucursal" AS "sucursal_DescripcionSucursal", "sucursal"."IndicadorPrincipalSucursal" AS "sucursal_IndicadorPrincipalSucursal", "sucursal"."CategoriaSucursal" AS "sucursal_CategoriaSucursal", "sucursal"."CodigoSucursalSeps" AS "sucursal_CodigoSucursalSeps", "sucursal"."RegistroSeps" AS "sucursal_RegistroSeps", "sucursal"."IndicadorEPS" AS "sucursal_IndicadorEPS", "sucursal"."CodigoSeps" AS "sucursal_CodigoSeps", "sucursal"."CodigoClinicaEps" AS "sucursal_CodigoClinicaEps", "sucursal"."IndicadorRedSelecta" AS "sucursal_IndicadorRedSelecta", "sucursal"."IndicadorExoneracionIgv" AS "sucursal_IndicadorExoneracionIgv", "sucursal"."IndicadorDetraccion" AS "sucursal_IndicadorDetraccion", "sucursal"."TipoInstitucion" AS "sucursal_TipoInstitucion", "sucursal"."EstadoRegistro" AS "sucursal_EstadoRegistro", "sucursal"."CodigoUsuarioCreador" AS "sucursal_CodigoUsuarioCreador", "sucursal"."FechaCreacion" AS "sucursal_FechaCreacion", "sucursal"."CodigoUsuarioModificador" AS "sucursal_CodigoUsuarioModificador", "sucursal"."FechaModificacion" AS "sucursal_FechaModificacion", "sucursal"."CodigoUsuarioCreadorSistema" AS "sucursal_CodigoUsuarioCreadorSistema", "sucursal"."FechaCreacionSistema" AS "sucursal_FechaCreacionSistema", "sucursal"."CodigoUsuarioUpdateSistema" AS "sucursal_CodigoUsuarioUpdateSistema", "sucursal"."FechaUpdateSistema" AS "sucursal_FechaUpdateSistema", "proveedor"."idProveedor" AS "proveedor_idProveedor", "proveedor"."idPersona" AS "proveedor_idPersona", "proveedor"."idTipoProveedor" AS "proveedor_idTipoProveedor", "proveedor"."codigoProveedor" AS "proveedor_codigoProveedor", "proveedor"."tipoProveedor" AS "proveedor_tipoProveedor", "proveedor"."indicadorCertificacion" AS "proveedor_indicadorCertificacion", "proveedor"."indicadorRedSelecta" AS "proveedor_indicadorRedSelecta", "proveedor"."estadoRegistro" AS "proveedor_estadoRegistro", "proveedor"."codigoUsuarioCreador" AS "proveedor_codigoUsuarioCreador", "proveedor"."fechaCreacion" AS "proveedor_fechaCreacion", "proveedor"."codigoUsuarioModificador" AS "proveedor_codigoUsuarioModificador", "proveedor"."fechaModificacion" AS "proveedor_fechaModificacion" FROM "persona"."Mae_Sucursal" "sucursal" LEFT JOIN "persona"."Mae_Proveedor" "proveedor" ON "proveedor"."idProveedor"="sucursal"."IdProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="proveedor"."idPersona") "distinctAlias" ORDER BY "distinctAlias"."sucursal_CodigoProveedor" ASC, "distinctAlias"."sucursal_NumeroSucursalProveedor" ASC, "sucursal_IdSucursal" ASC OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY
-query: SELECT "sucursal"."IdSucursal" AS "sucursal_IdSucursal", "sucursal"."IdProveedor" AS "sucursal_IdProveedor", "sucursal"."CodigoProveedor" AS "sucursal_CodigoProveedor", "sucursal"."NumeroSucursalProveedor" AS "sucursal_NumeroSucursalProveedor", "sucursal"."DescripcionSucursal" AS "sucursal_DescripcionSucursal", "sucursal"."IndicadorPrincipalSucursal" AS "sucursal_IndicadorPrincipalSucursal", "sucursal"."CategoriaSucursal" AS "sucursal_CategoriaSucursal", "sucursal"."CodigoSucursalSeps" AS "sucursal_CodigoSucursalSeps", "sucursal"."RegistroSeps" AS "sucursal_RegistroSeps", "sucursal"."IndicadorEPS" AS "sucursal_IndicadorEPS", "sucursal"."CodigoSeps" AS "sucursal_CodigoSeps", "sucursal"."CodigoClinicaEps" AS "sucursal_CodigoClinicaEps", "sucursal"."IndicadorRedSelecta" AS "sucursal_IndicadorRedSelecta", "sucursal"."IndicadorExoneracionIgv" AS "sucursal_IndicadorExoneracionIgv", "sucursal"."IndicadorDetraccion" AS "sucursal_IndicadorDetraccion", "sucursal"."TipoInstitucion" AS "sucursal_TipoInstitucion", "sucursal"."EstadoRegistro" AS "sucursal_EstadoRegistro", "sucursal"."CodigoUsuarioCreador" AS "sucursal_CodigoUsuarioCreador", "sucursal"."FechaCreacion" AS "sucursal_FechaCreacion", "sucursal"."CodigoUsuarioModificador" AS "sucursal_CodigoUsuarioModificador", "sucursal"."FechaModificacion" AS "sucursal_FechaModificacion", "sucursal"."CodigoUsuarioCreadorSistema" AS "sucursal_CodigoUsuarioCreadorSistema", "sucursal"."FechaCreacionSistema" AS "sucursal_FechaCreacionSistema", "sucursal"."CodigoUsuarioUpdateSistema" AS "sucursal_CodigoUsuarioUpdateSistema", "sucursal"."FechaUpdateSistema" AS "sucursal_FechaUpdateSistema", "proveedor"."idProveedor" AS "proveedor_idProveedor", "proveedor"."idPersona" AS "proveedor_idPersona", "proveedor"."idTipoProveedor" AS "proveedor_idTipoProveedor", "proveedor"."codigoProveedor" AS "proveedor_codigoProveedor", "proveedor"."tipoProveedor" AS "proveedor_tipoProveedor", "proveedor"."indicadorCertificacion" AS "proveedor_indicadorCertificacion", "proveedor"."indicadorRedSelecta" AS "proveedor_indicadorRedSelecta", "proveedor"."estadoRegistro" AS "proveedor_estadoRegistro", "proveedor"."codigoUsuarioCreador" AS "proveedor_codigoUsuarioCreador", "proveedor"."fechaCreacion" AS "proveedor_fechaCreacion", "proveedor"."codigoUsuarioModificador" AS "proveedor_codigoUsuarioModificador", "proveedor"."fechaModificacion" AS "proveedor_fechaModificacion" FROM "persona"."Mae_Sucursal" "sucursal" LEFT JOIN "persona"."Mae_Proveedor" "proveedor" ON "proveedor"."idProveedor"="sucursal"."IdProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="proveedor"."idPersona" WHERE "sucursal"."IdSucursal" IN (@0, @1, @2, @3) ORDER BY "sucursal"."CodigoProveedor" ASC, "sucursal"."NumeroSucursalProveedor" ASC -- PARAMETERS: ["C0D68DD2-42B5-441A-A9AC-59E46CF2A960","06EFA083-D1D1-4361-9FEA-FBE3026E1F1C","DD540CF8-B2DC-4AB7-8625-A38E0E50BAEA","B52B6AD8-E19C-405A-9B03-94C38980571D"]
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalSearchService] IDs de sucursales encontradas: C0D68DD2-42B5-441A-A9AC-59E46CF2A960, 06EFA083-D1D1-4361-9FEA-FBE3026E1F1C, DD540CF8-B2DC-4AB7-8625-A38E0E50BAEA, B52B6AD8-E19C-405A-9B03-94C38980571D
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalSearchService] [FIN searchSucursales] Tiempo total: 160ms, Sucursales encontradas: 4
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalController] [FIN buscarSucursales] X-Correlation-Id: 1, Tiempo total: 162ms
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalController] Sucursales encontradas: 4
-{"level":30,"time":1748894530903,"pid":11324,"hostname":"vme1dessftvm02","req":{"method":"POST","url":"/ms-ne-consulta-personaProveedor-eps/persona/v1.0.0/sucursal","X-Correlation-Id":"1","X-Request-Id":"1","usuarioAplicacion":"11","nombreAplicacion":"1","procesoNegocio":"1"},"res":{"statusCode":201},"responseTime":170,"msg":"request completed"}
-^C^C^CTerminate batch job (Y/N)? 
-SELECT DISTINCT "distinctAlias"."sucursal_IdSucursal" AS "ids_sucursal_IdSucursal", "distinctAlias"."sucursal_CodigoProveedor", "distinctAlias"."sucursal_NumeroSucursalProveedor" FROM (SELECT "sucursal"."IdSucursal" AS "sucursal_IdSucursal", "sucursal"."IdProveedor" AS "sucursal_IdProveedor", "sucursal"."CodigoProveedor" AS "sucursal_CodigoProveedor", "sucursal"."NumeroSucursalProveedor" AS "sucursal_NumeroSucursalProveedor", "sucursal"."DescripcionSucursal" AS "sucursal_DescripcionSucursal", "sucursal"."IndicadorPrincipalSucursal" AS "sucursal_IndicadorPrincipalSucursal", "sucursal"."CategoriaSucursal" AS "sucursal_CategoriaSucursal", "sucursal"."CodigoSucursalSeps" AS "sucursal_CodigoSucursalSeps", "sucursal"."RegistroSeps" AS "sucursal_RegistroSeps", "sucursal"."IndicadorEPS" AS "sucursal_IndicadorEPS", "sucursal"."CodigoSeps" AS "sucursal_CodigoSeps", "sucursal"."CodigoClinicaEps" AS "sucursal_CodigoClinicaEps", "sucursal"."IndicadorRedSelecta" AS "sucursal_IndicadorRedSelecta", "sucursal"."IndicadorExoneracionIgv" AS "sucursal_IndicadorExoneracionIgv", "sucursal"."IndicadorDetraccion" AS "sucursal_IndicadorDetraccion", "sucursal"."TipoInstitucion" AS "sucursal_TipoInstitucion", "sucursal"."EstadoRegistro" AS "sucursal_EstadoRegistro", "sucursal"."CodigoUsuarioCreador" AS "sucursal_CodigoUsuarioCreador", "sucursal"."FechaCreacion" AS "sucursal_FechaCreacion", "sucursal"."CodigoUsuarioModificador" AS "sucursal_CodigoUsuarioModificador", "sucursal"."FechaModificacion" AS "sucursal_FechaModificacion", "sucursal"."CodigoUsuarioCreadorSistema" AS "sucursal_CodigoUsuarioCreadorSistema", "sucursal"."FechaCreacionSistema" AS "sucursal_FechaCreacionSistema", "sucursal"."CodigoUsuarioUpdateSistema" AS "sucursal_CodigoUsuarioUpdateSistema", "sucursal"."FechaUpdateSistema" AS "sucursal_FechaUpdateSistema", "proveedor"."idProveedor" AS "proveedor_idProveedor", "proveedor"."idPersona" AS "proveedor_idPersona", "proveedor"."idTipoProveedor" AS "proveedor_idTipoProveedor", "proveedor"."codigoProveedor" AS "proveedor_codigoProveedor", "proveedor"."tipoProveedor" AS "proveedor_tipoProveedor", "proveedor"."indicadorCertificacion" AS "proveedor_indicadorCertificacion", "proveedor"."indicadorRedSelecta" AS "proveedor_indicadorRedSelecta", "proveedor"."estadoRegistro" AS "proveedor_estadoRegistro", "proveedor"."codigoUsuarioCreador" AS "proveedor_codigoUsuarioCreador", "proveedor"."fechaCreacion" AS "proveedor_fechaCreacion", "proveedor"."codigoUsuarioModificador" AS "proveedor_codigoUsuarioModificador", "proveedor"."fechaModificacion" AS "proveedor_fechaModificacion" FROM "persona"."Mae_Sucursal" "sucursal" LEFT JOIN "persona"."Mae_Proveedor" "proveedor" ON "proveedor"."idProveedor"="sucursal"."IdProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="proveedor"."idPersona") "distinctAlias" ORDER BY "distinctAlias"."sucursal_CodigoProveedor" ASC, "distinctAlias"."sucursal_NumeroSucursalProveedor" ASC, "sucursal_IdSucursal" ASC OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY
-query: SELECT "sucursal"."IdSucursal" AS "sucursal_IdSucursal", "sucursal"."IdProveedor" AS "sucursal_IdProveedor", "sucursal"."CodigoProveedor" AS "sucursal_CodigoProveedor", "sucursal"."NumeroSucursalProveedor" AS "sucursal_NumeroSucursalProveedor", "sucursal"."DescripcionSucursal" AS "sucursal_DescripcionSucursal", "sucursal"."IndicadorPrincipalSucursal" AS "sucursal_IndicadorPrincipalSucursal", "sucursal"."CategoriaSucursal" AS "sucursal_CategoriaSucursal", "sucursal"."CodigoSucursalSeps" AS "sucursal_CodigoSucursalSeps", "sucursal"."RegistroSeps" AS "sucursal_RegistroSeps", "sucursal"."IndicadorEPS" AS "sucursal_IndicadorEPS", "sucursal"."CodigoSeps" AS "sucursal_CodigoSeps", "sucursal"."CodigoClinicaEps" AS "sucursal_CodigoClinicaEps", "sucursal"."IndicadorRedSelecta" AS "sucursal_IndicadorRedSelecta", "sucursal"."IndicadorExoneracionIgv" AS "sucursal_IndicadorExoneracionIgv", "sucursal"."IndicadorDetraccion" AS "sucursal_IndicadorDetraccion", "sucursal"."TipoInstitucion" AS "sucursal_TipoInstitucion", "sucursal"."EstadoRegistro" AS "sucursal_EstadoRegistro", "sucursal"."CodigoUsuarioCreador" AS "sucursal_CodigoUsuarioCreador", "sucursal"."FechaCreacion" AS "sucursal_FechaCreacion", "sucursal"."CodigoUsuarioModificador" AS "sucursal_CodigoUsuarioModificador", "sucursal"."FechaModificacion" AS "sucursal_FechaModificacion", "sucursal"."CodigoUsuarioCreadorSistema" AS "sucursal_CodigoUsuarioCreadorSistema", "sucursal"."FechaCreacionSistema" AS "sucursal_FechaCreacionSistema", "sucursal"."CodigoUsuarioUpdateSistema" AS "sucursal_CodigoUsuarioUpdateSistema", "sucursal"."FechaUpdateSistema" AS "sucursal_FechaUpdateSistema", "proveedor"."idProveedor" AS "proveedor_idProveedor", "proveedor"."idPersona" AS "proveedor_idPersona", "proveedor"."idTipoProveedor" AS "proveedor_idTipoProveedor", "proveedor"."codigoProveedor" AS "proveedor_codigoProveedor", "proveedor"."tipoProveedor" AS "proveedor_tipoProveedor", "proveedor"."indicadorCertificacion" AS "proveedor_indicadorCertificacion", "proveedor"."indicadorRedSelecta" AS "proveedor_indicadorRedSelecta", "proveedor"."estadoRegistro" AS "proveedor_estadoRegistro", "proveedor"."codigoUsuarioCreador" AS "proveedor_codigoUsuarioCreador", "proveedor"."fechaCreacion" AS "proveedor_fechaCreacion", "proveedor"."codigoUsuarioModificador" AS "proveedor_codigoUsuarioModificador", "proveedor"."fechaModificacion" AS "proveedor_fechaModificacion" FROM "persona"."Mae_Sucursal" "sucursal" LEFT JOIN "persona"."Mae_Proveedor" "proveedor" ON "proveedor"."idProveedor"="sucursal"."IdProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="proveedor"."idPersona" WHERE "sucursal"."IdSucursal" IN (@0, @1, @2, @3) ORDER BY "sucursal"."CodigoProveedor" ASC, "sucursal"."NumeroSucursalProveedor" ASC -- PARAMETERS: ["C0D68DD2-42B5-441A-A9AC-59E46CF2A960","06EFA083-D1D1-4361-9FEA-FBE3026E1F1C","DD540CF8-B2DC-4AB7-8625-A38E0E50BAEA","B52B6AD8-E19C-405A-9B03-94C38980571D"]
-[Nest] 11324  - 06/02/2025, 3:02:04 PM     LOG [SucursalSearchService] IDs de sucursales encontradas: C0D68DD2-42B5-441A-A9AC-59E46CF2A960, 06EFA083-D1D1-4361-9FEA-FBE3026E1F1C, DD540CF8-B2DC-4AB7-8625-A38E0E50BAEA, B52B6AD8-E19C-405A-9B03-94C38980571D
-[Nest] 11324  - 06/02/2025, 3:02:04 PM     LOG [SucursalSearchService] [FIN searchSucursales] Tiempo total: 428ms, Sucursales encontradas: 4
-[Nest] 11324  - 06/02/2025, 3:02:04 PM     LOG [SucursalController] [FIN buscarSucursales] X-Correlation-Id: 1, Tiempo total: 478ms
-[Nest] 11324  - 06/02/2025, 3:02:04 PM     LOG [SucursalController] Sucursales encontradas: 4
-{"level":30,"time":1748894525147,"pid":11324,"hostname":"vme1dessftvm02","req":{"method":"POST","url":"/ms-ne-consulta-personaProveedor-eps/persona/v1.0.0/sucursal","X-Correlation-Id":"1","X-Request-Id":"1","usuarioAplicacion":"11","nombreAplicacion":"1","procesoNegocio":"1"},"res":{"statusCode":201},"responseTime":802,"msg":"request completed"}
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalController] [INICIO buscarSucursales] X-Correlation-Id: 1, X-Request-Id: 1
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalController] Aplicación: 1, Proceso: 1, Usuario: 11
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalController] Criterios de búsqueda: {}
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalSearchService] [INICIO searchSucursales] Filtros: {}
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalSearchService] Query generada: SELECT "sucursal"."IdSucursal" AS "sucursal_IdSucursal", "sucursal"."IdProveedor" AS "sucursal_IdProveedor", "sucursal"."CodigoProveedor" AS "sucursal_CodigoProveedor", "sucursal"."NumeroSucursalProveedor" AS "sucursal_NumeroSucursalProveedor", "sucursal"."DescripcionSucursal" AS "sucursal_DescripcionSucursal", "sucursal"."IndicadorPrincipalSucursal" AS "sucursal_IndicadorPrincipalSucursal", "sucursal"."CategoriaSucursal" AS "sucursal_CategoriaSucursal", "sucursal"."CodigoSucursalSeps" AS "sucursal_CodigoSucursalSeps", "sucursal"."RegistroSeps" AS "sucursal_RegistroSeps", "sucursal"."IndicadorEPS" AS "sucursal_IndicadorEPS", "sucursal"."CodigoSeps" AS "sucursal_CodigoSeps", "sucursal"."CodigoClinicaEps" AS "sucursal_CodigoClinicaEps", "sucursal"."IndicadorRedSelecta" AS "sucursal_IndicadorRedSelecta", "sucursal"."IndicadorExoneracionIgv" AS "sucursal_IndicadorExoneracionIgv", "sucursal"."IndicadorDetraccion" AS "sucursal_IndicadorDetraccion", "sucursal"."TipoInstitucion" AS "sucursal_TipoInstitucion", "sucursal"."EstadoRegistro" AS "sucursal_EstadoRegistro", "sucursal"."CodigoUsuarioCreador" AS "sucursal_CodigoUsuarioCreador", "sucursal"."FechaCreacion" AS "sucursal_FechaCreacion", "sucursal"."CodigoUsuarioModificador" AS "sucursal_CodigoUsuarioModificador", "sucursal"."FechaModificacion" AS "sucursal_FechaModificacion", "sucursal"."CodigoUsuarioCreadorSistema" AS "sucursal_CodigoUsuarioCreadorSistema", "sucursal"."FechaCreacionSistema" AS "sucursal_FechaCreacionSistema", "sucursal"."CodigoUsuarioUpdateSistema" AS "sucursal_CodigoUsuarioUpdateSistema", "sucursal"."FechaUpdateSistema" AS "sucursal_FechaUpdateSistema", "proveedor"."idProveedor" AS "proveedor_idProveedor", "proveedor"."idPersona" AS "proveedor_idPersona", "proveedor"."idTipoProveedor" AS "proveedor_idTipoProveedor", "proveedor"."codigoProveedor" AS "proveedor_codigoProveedor", "proveedor"."tipoProveedor" AS "proveedor_tipoProveedor", "proveedor"."indicadorCertificacion" AS "proveedor_indicadorCertificacion", "proveedor"."indicadorRedSelecta" AS "proveedor_indicadorRedSelecta", "proveedor"."estadoRegistro" AS "proveedor_estadoRegistro", "proveedor"."codigoUsuarioCreador" AS "proveedor_codigoUsuarioCreador", "proveedor"."fechaCreacion" AS "proveedor_fechaCreacion", "proveedor"."codigoUsuarioModificador" AS "proveedor_codigoUsuarioModificador", "proveedor"."fechaModificacion" AS "proveedor_fechaModificacion" FROM "persona"."Mae_Sucursal" "sucursal" LEFT JOIN "persona"."Mae_Proveedor" "proveedor" ON "proveedor"."idProveedor"="sucursal"."IdProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="proveedor"."idPersona"
-query: SELECT COUNT(DISTINCT("sucursal"."IdSucursal")) AS "cnt" FROM "persona"."Mae_Sucursal" "sucursal" LEFT JOIN "persona"."Mae_Proveedor" "proveedor" ON "proveedor"."idProveedor"="sucursal"."IdProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="proveedor"."idPersona"[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalSearchService] Total de elementos encontrados: 4
-query: SELECT DISTINCT "distinctAlias"."sucursal_IdSucursal" AS "ids_sucursal_IdSucursal", "distinctAlias"."sucursal_CodigoProveedor", "distinctAlias"."sucursal_NumeroSucursalProveedor" FROM (SELECT "sucursal"."IdSucursal" AS "sucursal_IdSucursal", "sucursal"."IdProveedor" AS "sucursal_IdProveedor", "sucursal"."CodigoProveedor" AS "sucursal_CodigoProveedor", "sucursal"."NumeroSucursalProveedor" AS "sucursal_NumeroSucursalProveedor", "sucursal"."DescripcionSucursal" AS "sucursal_DescripcionSucursal", "sucursal"."IndicadorPrincipalSucursal" AS "sucursal_IndicadorPrincipalSucursal", "sucursal"."CategoriaSucursal" AS "sucursal_CategoriaSucursal", "sucursal"."CodigoSucursalSeps" AS "sucursal_CodigoSucursalSeps", "sucursal"."RegistroSeps" AS "sucursal_RegistroSeps", "sucursal"."IndicadorEPS" AS "sucursal_IndicadorEPS", "sucursal"."CodigoSeps" AS "sucursal_CodigoSeps", "sucursal"."CodigoClinicaEps" AS "sucursal_CodigoClinicaEps", "sucursal"."IndicadorRedSelecta" AS "sucursal_IndicadorRedSelecta", "sucursal"."IndicadorExoneracionIgv" AS "sucursal_IndicadorExoneracionIgv", "sucursal"."IndicadorDetraccion" AS "sucursal_IndicadorDetraccion", "sucursal"."TipoInstitucion" AS "sucursal_TipoInstitucion", "sucursal"."EstadoRegistro" AS "sucursal_EstadoRegistro", "sucursal"."CodigoUsuarioCreador" AS "sucursal_CodigoUsuarioCreador", "sucursal"."FechaCreacion" AS "sucursal_FechaCreacion", "sucursal"."CodigoUsuarioModificador" AS "sucursal_CodigoUsuarioModificador", "sucursal"."FechaModificacion" AS "sucursal_FechaModificacion", "sucursal"."CodigoUsuarioCreadorSistema" AS "sucursal_CodigoUsuarioCreadorSistema", "sucursal"."FechaCreacionSistema" AS "sucursal_FechaCreacionSistema", "sucursal"."CodigoUsuarioUpdateSistema" AS "sucursal_CodigoUsuarioUpdateSistema", "sucursal"."FechaUpdateSistema" AS "sucursal_FechaUpdateSistema", "proveedor"."idProveedor" AS "proveedor_idProveedor", "proveedor"."idPersona" AS "proveedor_idPersona", "proveedor"."idTipoProveedor" AS "proveedor_idTipoProveedor", "proveedor"."codigoProveedor" AS "proveedor_codigoProveedor", "proveedor"."tipoProveedor" AS "proveedor_tipoProveedor", "proveedor"."indicadorCertificacion" AS "proveedor_indicadorCertificacion", "proveedor"."indicadorRedSelecta" AS "proveedor_indicadorRedSelecta", "proveedor"."estadoRegistro" AS "proveedor_estadoRegistro", "proveedor"."codigoUsuarioCreador" AS "proveedor_codigoUsuarioCreador", "proveedor"."fechaCreacion" AS "proveedor_fechaCreacion", "proveedor"."codigoUsuarioModificador" AS "proveedor_codigoUsuarioModificador", "proveedor"."fechaModificacion" AS "proveedor_fechaModificacion" FROM "persona"."Mae_Sucursal" "sucursal" LEFT JOIN "persona"."Mae_Proveedor" "proveedor" ON "proveedor"."idProveedor"="sucursal"."IdProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="proveedor"."idPersona") "distinctAlias" ORDER BY "distinctAlias"."sucursal_CodigoProveedor" ASC, "distinctAlias"."sucursal_NumeroSucursalProveedor" ASC, "sucursal_IdSucursal" ASC OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY
-query: SELECT "sucursal"."IdSucursal" AS "sucursal_IdSucursal", "sucursal"."IdProveedor" AS "sucursal_IdProveedor", "sucursal"."CodigoProveedor" AS "sucursal_CodigoProveedor", "sucursal"."NumeroSucursalProveedor" AS "sucursal_NumeroSucursalProveedor", "sucursal"."DescripcionSucursal" AS "sucursal_DescripcionSucursal", "sucursal"."IndicadorPrincipalSucursal" AS "sucursal_IndicadorPrincipalSucursal", "sucursal"."CategoriaSucursal" AS "sucursal_CategoriaSucursal", "sucursal"."CodigoSucursalSeps" AS "sucursal_CodigoSucursalSeps", "sucursal"."RegistroSeps" AS "sucursal_RegistroSeps", "sucursal"."IndicadorEPS" AS "sucursal_IndicadorEPS", "sucursal"."CodigoSeps" AS "sucursal_CodigoSeps", "sucursal"."CodigoClinicaEps" AS "sucursal_CodigoClinicaEps", "sucursal"."IndicadorRedSelecta" AS "sucursal_IndicadorRedSelecta", "sucursal"."IndicadorExoneracionIgv" AS "sucursal_IndicadorExoneracionIgv", "sucursal"."IndicadorDetraccion" AS "sucursal_IndicadorDetraccion", "sucursal"."TipoInstitucion" AS "sucursal_TipoInstitucion", "sucursal"."EstadoRegistro" AS "sucursal_EstadoRegistro", "sucursal"."CodigoUsuarioCreador" AS "sucursal_CodigoUsuarioCreador", "sucursal"."FechaCreacion" AS "sucursal_FechaCreacion", "sucursal"."CodigoUsuarioModificador" AS "sucursal_CodigoUsuarioModificador", "sucursal"."FechaModificacion" AS "sucursal_FechaModificacion", "sucursal"."CodigoUsuarioCreadorSistema" AS "sucursal_CodigoUsuarioCreadorSistema", "sucursal"."FechaCreacionSistema" AS "sucursal_FechaCreacionSistema", "sucursal"."CodigoUsuarioUpdateSistema" AS "sucursal_CodigoUsuarioUpdateSistema", "sucursal"."FechaUpdateSistema" AS "sucursal_FechaUpdateSistema", "proveedor"."idProveedor" AS "proveedor_idProveedor", "proveedor"."idPersona" AS "proveedor_idPersona", "proveedor"."idTipoProveedor" AS "proveedor_idTipoProveedor", "proveedor"."codigoProveedor" AS "proveedor_codigoProveedor", "proveedor"."tipoProveedor" AS "proveedor_tipoProveedor", "proveedor"."indicadorCertificacion" AS "proveedor_indicadorCertificacion", "proveedor"."indicadorRedSelecta" AS "proveedor_indicadorRedSelecta", "proveedor"."estadoRegistro" AS "proveedor_estadoRegistro", "proveedor"."codigoUsuarioCreador" AS "proveedor_codigoUsuarioCreador", "proveedor"."fechaCreacion" AS "proveedor_fechaCreacion", "proveedor"."codigoUsuarioModificador" AS "proveedor_codigoUsuarioModificador", "proveedor"."fechaModificacion" AS "proveedor_fechaModificacion" FROM "persona"."Mae_Sucursal" "sucursal" LEFT JOIN "persona"."Mae_Proveedor" "proveedor" ON "proveedor"."idProveedor"="sucursal"."IdProveedor"  LEFT JOIN "persona"."Mae_Persona" "persona" ON "persona"."IdPersona"="proveedor"."idPersona" WHERE "sucursal"."IdSucursal" IN (@0, @1, @2, @3) ORDER BY "sucursal"."CodigoProveedor" ASC, "sucursal"."NumeroSucursalProveedor" ASC -- PARAMETERS: ["C0D68DD2-42B5-441A-A9AC-59E46CF2A960","06EFA083-D1D1-4361-9FEA-FBE3026E1F1C","DD540CF8-B2DC-4AB7-8625-A38E0E50BAEA","B52B6AD8-E19C-405A-9B03-94C38980571D"]
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalSearchService] IDs de sucursales encontradas: C0D68DD2-42B5-441A-A9AC-59E46CF2A960, 06EFA083-D1D1-4361-9FEA-FBE3026E1F1C, DD540CF8-B2DC-4AB7-8625-A38E0E50BAEA, B52B6AD8-E19C-405A-9B03-94C38980571D
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalSearchService] [FIN searchSucursales] Tiempo total: 160ms, Sucursales encontradas: 4
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalController] [FIN buscarSucursales] X-Correlation-Id: 1, Tiempo total: 162ms
-[Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalController] Sucursales encontradas: 4
-{"level":30,"time":1748894530903,"pid":11324,"hostname":"vme1dessftvm02","req":{"method":"POST","url":"/ms-ne-consulta-personaProveedor-eps/persona/v1.0.0/sucursal","X-Correlation-Id":"1","X-Request-Id":"1","usuarioAplicacion":"11","nombreAplicacion":"1","procesoNegocio":"1"},"res":{"statusCode":201},"responseTime":170,"msg":"request completed"}
-
-
-
-curl --location 'http://localhost:3001/ms-ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/beneficios/diagnosticos' \
---header 'Content-Type: application/json' \
---header 'ocp-apim-subscription-key: your-subscription-key-here' \
---header 'X-Correlation-Id: 789' \
---header 'X-Request-Id: 101112' \
---header 'nombreAplicacion: mobile-app' \
---header 'procesoNegocio: diagnostico-beneficio' \
---header 'usuarioAplicacion: medico' \
---data '{
-"filtroxCompania": "EPS",
-"filtroxSistema": "Nvsys",
-"filtroxCodBeneficio": ["P001"],
-"filtroxIdBeneficio": [],
-"filtroxEstadoBeneficio": "ACTIVO",
-"pageSize": 10,
-"pageStartIndex": 0,
-"sort": [
-{
-"field": "codDiagnostico",
-"direction": "asc"
-}
-]
-}'
-
-
+blocking.session_id AS blocking_session_id,
+blocked.session_id AS blocked_session_id,
+blocking_text.text AS blocking_text,
+blocked_text.text AS blocked_text,
+blocked.wait_type,
+blocked.wait_time / 1000.0 AS wait_time_seconds
+FROM sys.dm_exec_requests blocked
+INNER JOIN sys.dm_exec_requests blocking ON blocked.blocking_session_id = blocking.session_id
+CROSS APPLY sys.dm_exec_sql_text(blocking.sql_handle) blocking_text
+CROSS APPLY sys.dm_exec_sql_text(blocked.sql_handle) blocked_text
+WHERE blocked.blocking_session_id != 0;
