@@ -454,3 +454,18 @@ CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) qt
 WHERE qt.text LIKE '%DiagnosticoBeneficio%'
 AND qt.text LIKE '%Mae_Beneficio%'
 ORDER BY qs.total_elapsed_time DESC;
+
+-- Índice para DiagnosticoBeneficio
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Beneficio_Estado
+ON convenio.DiagnosticoBeneficio (idBeneficio, estRegistro)
+INCLUDE (idDiagnostico, fecCreacionSistema);
+
+-- Índice para Diagnostico
+CREATE NONCLUSTERED INDEX IX_Diagnostico_Estado_Sistema
+ON convenio.Diagnostico (estRegistro, codSistema)
+INCLUDE (codDiagnostico, descripcionDiagnostico);
+
+-- Índice para Mae_Beneficio
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Compania
+ON convenio.Mae_Beneficio (compania, estRegistro)
+INCLUDE (codBeneficio, descripcion, desResumida);
