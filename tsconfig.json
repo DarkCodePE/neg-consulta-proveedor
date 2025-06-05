@@ -456,3 +456,21 @@ query failed:
       FETCH NEXT 10 ROWS ONLY
 
 error: QueryFailedError: Error: Timeout: Request failed to complete in 15000ms
+
+sql
+-- Paso 1: Cambiar tipos de datos en columnas CLAVE
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ALTER COLUMN [idDiagnostico] NVARCHAR(50) NOT NULL;
+
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ALTER COLUMN [idBeneficio] NVARCHAR(50) NOT NULL;
+
+-- Paso 2: Crear índices ESSENCIALES
+CREATE NONCLUSTERED INDEX IX_DiagBeneficio_Beneficio
+ON [convenio].[DiagnosticoBeneficio] ([idBeneficio], [estRegistro])
+INCLUDE ([idDiagnostico]);
+
+CREATE NONCLUSTERED INDEX IX_Diagnostico_Filtro
+ON [convenio].[Diagnostico] ([idDiagnostico], [codSistema])
+INCLUDE ([codDiagnostico], [descripcionDiagnostico])
+WHERE [estRegistro] = 'V' AND [codSistema] = 'NVS';
