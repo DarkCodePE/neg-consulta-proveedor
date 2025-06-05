@@ -383,9 +383,15 @@ connectionRetryInterval: 2000,
 // Opciones adicionales para manejar NVARCHAR(MAX)
 tdsVersion: '7_4',
 packetSize: 16384         // Paquete más grande para NVARCHAR(MAX)
-},
+}
 
-
+-- Este solo índice eliminará 80% de timeouts
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Critical
+ON [convenio].[DiagnosticoBeneficio] (
+LEFT([idBeneficio], 50),
+LEFT([idDiagnostico], 50),
+LEFT([estRegistro], 10)
+);
 
 -- Este solo índice eliminará 80% de timeouts
 CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Critical
