@@ -1387,3 +1387,29 @@ query: SELECT "sucursal"."IdSucursal" AS "sucursal_IdSucursal", "sucursal"."IdPr
 [Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalController] [FIN buscarSucursales] X-Correlation-Id: 1, Tiempo total: 162ms
 [Nest] 11324  - 06/02/2025, 3:02:10 PM     LOG [SucursalController] Sucursales encontradas: 4
 {"level":30,"time":1748894530903,"pid":11324,"hostname":"vme1dessftvm02","req":{"method":"POST","url":"/ms-ne-consulta-personaProveedor-eps/persona/v1.0.0/sucursal","X-Correlation-Id":"1","X-Request-Id":"1","usuarioAplicacion":"11","nombreAplicacion":"1","procesoNegocio":"1"},"res":{"statusCode":201},"responseTime":170,"msg":"request completed"}
+
+
+
+curl --location 'http://localhost:3001/ms-ne-consulta-convenioBeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/beneficios/diagnosticos' \
+--header 'Content-Type: application/json' \
+--header 'ocp-apim-subscription-key: your-subscription-key-here' \
+--header 'X-Correlation-Id: 789' \
+--header 'X-Request-Id: 101112' \
+--header 'nombreAplicacion: mobile-app' \
+--header 'procesoNegocio: diagnostico-beneficio' \
+--header 'usuarioAplicacion: medico' \
+--data '{
+"filtroxCompania": "EPS",
+"filtroxSistema": "Nvsys",
+"filtroxCodBeneficio": ["P001"],
+"filtroxIdBeneficio": [],
+"filtroxEstadoBeneficio": "ACTIVO",
+"pageSize": 10,
+"pageStartIndex": 0,
+"sort": [
+{
+"field": "codDiagnostico",
+"direction": "asc"
+}
+]
+}'
