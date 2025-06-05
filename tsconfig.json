@@ -311,161 +311,76 @@ GO
 -- ===============================================
 -- ÍNDICES CRÍTICOS PARA RESOLVER TIMEOUT
 -- ===============================================
+-- ÍNDICES URGENTES PARA MEJORAR PERFORMANCE
+-- Aunque las columnas sean NVARCHAR(MAX), estos índices ayudarán significativamente
 
--- ✅ NOTA IMPORTANTE: Como los campos son NVARCHAR(MAX),
--- usamos LEFT() para crear índices con longitud fija
+-- 1. Índice para DiagnosticoBeneficio (tabla de relación)
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_idBeneficio_estRegistro
+ON convenio.DiagnosticoBeneficio (idBeneficio(100), estRegistro(1))
+INCLUDE (idDiagnostico, fecCreacionsSistema);
 
--- 🚨 1. ÍNDICE CRÍTICO #1: DiagnosticoBeneficio (JOIN principal)
--- Este es el más importante para tu consulta
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Critical
-ON [convenio].[DiagnosticoBeneficio] (
-LEFT([idBeneficio], 50),    -- Para JOIN con Mae_Beneficio
-LEFT([idDiagnostico], 50),  -- Para JOIN con Diagnostico
-LEFT([estRegistro], 10)     -- Para WHERE estRegistro = 'V'
-)
-INCLUDE (
-LEFT([codDiagnostico], 50),
-LEFT([codBeneficio], 50),
-[fecCreacionsSistema]
-);
+-- 2. Índice para búsquedas por diagnóstico
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_idDiagnostico
+ON convenio.DiagnosticoBeneficio (idDiagnostico(100), idBeneficio(100));
 
--- 🚨 2. ÍNDICE CRÍTICO #2: Diagnostico (WHERE y ORDER BY)
-CREATE NONCLUSTERED INDEX IX_Diagnostico_Critical
-ON [convenio].[Diagnostico] (
-LEFT([estRegistro], 10),        -- Para WHERE estRegistro = 'V'
-LEFT([codSistema], 50),         -- Para filtro por sistema
-LEFT([codDiagnostico], 50)      -- Para ORDER BY
-)
-INCLUDE (
-LEFT([idDiagnostico], 50),
-LEFT([descripcionDiagnostico], 255),
-LEFT([desTipDiagnostico], 255),
-LEFT([codGrupoDiagnostico], 50),
-[fecCreacionSistema]
-);
+-- 3. Índice para Diagnostico
+CREATE NONCLUSTERED INDEX IX_Diagnostico_idDiagnostico
+ON convenio.Diagnostico (idDiagnostico(100))
+INCLUDE (codDiagnostico, descripcionDiagnostico, estRegistro);
 
--- 🚨 3. ÍNDICE CRÍTICO #3: Mae_Beneficio (JOIN y filtros)
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Critical
-ON [convenio].[Mae_Beneficio] (
-LEFT([idBeneficio], 50),    -- Para JOIN con DiagnosticoBeneficio
-LEFT([estRegistro], 10),    -- Para WHERE beneficio activo
-LEFT([compania], 20)        -- Para filtro por compañía
-)
-INCLUDE (
-LEFT([codBeneficio], 50),
-LEFT([descripcion], 255),
-LEFT([desResumida], 255),
-LEFT([codGrupoBeneficio], 50),
-LEFT([codSistema], 50)
-);
+-- 4. Índice para Mae_Beneficio
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_idBeneficio
+ON convenio.Mae_Beneficio (idBeneficio(100))
+INCLUDE (codBeneficio, descripcion, desResumida, estRegistro);
 
--- 🚨 4. ÍNDICES ADICIONALES PARA OPTIMIZAR JOINS
+-- 5. Índice para filtros comunes
+CREATE NONCLUSTERED INDEX IX_Diagnostico_estRegistro_codSistema
+ON convenio.Diagnostico (estRegistro(1), codSistema(50));
 
--- Para búsquedas por ID de diagnóstico
-CREATE NONCLUSTERED INDEX IX_Diagnostico_ById
-ON [convenio].[Diagnostico] (LEFT([idDiagnostico], 50))
-INCLUDE (LEFT([codDiagnostico], 50), LEFT([descripcionDiagnostico], 255));
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_compania_estRegistro
+ON convenio.Mae_Beneficio (compania(50), estRegistro(1));
 
--- Para búsquedas por ID de beneficio
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_ById
-ON [convenio].[Mae_Beneficio] (LEFT([idBeneficio], 50))
-INCLUDE (LEFT([codBeneficio], 50), LEFT([descripcion], 255));
+ql-- SCRIPT DE OPTIMIZACIÓN DE TABLAS
+-- IMPORTANTE: Ejecutar en horario de mantenimiento con backup previo
 
--- Para la tabla de relación por beneficio
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_ByBeneficio
-ON [convenio].[DiagnosticoBeneficio] (LEFT([idBeneficio], 50), LEFT([estRegistro], 10));
+-- 1. Agregar columnas optimizadas para IDs
+ALTER TABLE convenio.DiagnosticoBeneficio
+ADD idDiagnosticoBeneficio_opt INT IDENTITY(1,1),
+idDiagnostico_opt INT,
+idBeneficio_opt INT;
 
--- Para la tabla de relación por diagnóstico
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_ByDiagnostico
-ON [convenio].[DiagnosticoBeneficio] (LEFT([idDiagnostico], 50), LEFT([estRegistro], 10));
+ALTER TABLE convenio.Diagnostico
+ADD idDiagnostico_opt INT IDENTITY(1,1);
 
--- ===============================================
--- VERIFICACIÓN DE ÍNDICES CREADOS
--- ===============================================
+ALTER TABLE convenio.Mae_Beneficio
+ADD idBeneficio_opt INT IDENTITY(1,1);
 
--- Verificar que los índices se crearon correctamente
-SELECT
-t.name AS tabla,
-i.name AS indice,
-i.type_desc AS tipo,
-STUFF((SELECT ', ' + c.name
-FROM sys.index_columns ic
-INNER JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
-WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.is_included_column = 0
-ORDER BY ic.key_ordinal
-FOR XML PATH('')), 1, 2, '') AS columnas_clave,
-STUFF((SELECT ', ' + c.name
-FROM sys.index_columns ic
-INNER JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
-WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.is_included_column = 1
-ORDER BY ic.key_ordinal
-FOR XML PATH('')), 1, 2, '') AS columnas_incluidas
-FROM sys.indexes i
-INNER JOIN sys.tables t ON i.object_id = t.object_id
-WHERE t.name IN ('DiagnosticoBeneficio', 'Diagnostico', 'Mae_Beneficio')
-AND i.name LIKE 'IX_%'
-ORDER BY t.name, i.name;
+-- 2. Crear mapeo de IDs
+-- (Este paso requiere scripts de migración de datos)
 
--- ===============================================
--- ESTADÍSTICAS DESPUÉS DE CREAR ÍNDICES
--- ===============================================
+-- 3. Cambiar tipos de datos de columnas críticas
+ALTER TABLE convenio.DiagnosticoBeneficio ALTER COLUMN estRegistro NVARCHAR(1);
+ALTER TABLE convenio.DiagnosticoBeneficio ALTER COLUMN codSistema NVARCHAR(50);
+ALTER TABLE convenio.DiagnosticoBeneficio ALTER COLUMN codDiagnostico NVARCHAR(50);
+ALTER TABLE convenio.DiagnosticoBeneficio ALTER COLUMN codBeneficio NVARCHAR(50);
 
--- Actualizar estadísticas para que los índices se usen inmediatamente
-UPDATE STATISTICS [convenio].[DiagnosticoBeneficio] WITH FULLSCAN;
-UPDATE STATISTICS [convenio].[Diagnostico] WITH FULLSCAN;
-UPDATE STATISTICS [convenio].[Mae_Beneficio] WITH FULLSCAN;
+ALTER TABLE convenio.Diagnostico ALTER COLUMN estRegistro NVARCHAR(1);
+ALTER TABLE convenio.Diagnostico ALTER COLUMN codSistema NVARCHAR(50);
+ALTER TABLE convenio.Diagnostico ALTER COLUMN codDiagnostico NVARCHAR(50);
 
--- ===============================================
--- PROBAR IMPACTO DE LOS ÍNDICES
--- ===============================================
-
--- Test query para verificar mejora de performance
-SET STATISTICS IO ON;
-SET STATISTICS TIME ON;
-
-SELECT TOP 10
-d.codDiagnostico,
-d.descripcionDiagnostico,
-b.codBeneficio,
-b.descripcion as descripcionBeneficio
-FROM [convenio].[Diagnostico] d
-INNER JOIN [convenio].[DiagnosticoBeneficio] db ON LEFT(d.idDiagnostico, 50) = LEFT(db.idDiagnostico, 50)
-INNER JOIN [convenio].[Mae_Beneficio] b ON LEFT(db.idBeneficio, 50) = LEFT(b.idBeneficio, 50)
-WHERE LEFT(db.estRegistro, 10) = 'V'
-AND LEFT(d.estRegistro, 10) = 'V'
-AND LEFT(b.estRegistro, 10) = 'V'
-ORDER BY d.codDiagnostico;
-
-SET STATISTICS IO OFF;
-SET STATISTICS TIME OFF;
-
--- ===============================================
--- VALIDAR PLAN DE EJECUCIÓN
--- ===============================================
-
--- Verificar que los índices se están usando
-SELECT
-qs.execution_count,
-qs.total_elapsed_time / 1000.0 AS total_elapsed_time_seconds,
-qs.total_logical_reads,
-SUBSTRING(qt.text, (qs.statement_start_offset/2)+1, 50) AS query_snippet
-FROM sys.dm_exec_query_stats qs
-CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) qt
-WHERE qt.text LIKE '%DiagnosticoBeneficio%'
-AND qt.text LIKE '%Mae_Beneficio%'
-ORDER BY qs.total_elapsed_time DESC;
-
--- Índice para DiagnosticoBeneficio
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Beneficio_Estado
-ON convenio.DiagnosticoBeneficio (idBeneficio, estRegistro)
-INCLUDE (idDiagnostico, fecCreacionSistema);
-
--- Índice para Diagnostico
-CREATE NONCLUSTERED INDEX IX_Diagnostico_Estado_Sistema
-ON convenio.Diagnostico (estRegistro, codSistema)
-INCLUDE (codDiagnostico, descripcionDiagnostico);
-
--- Índice para Mae_Beneficio
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Compania
-ON convenio.Mae_Beneficio (compania, estRegistro)
-INCLUDE (codBeneficio, descripcion, desResumida);
+ALTER TABLE convenio.Mae_Beneficio ALTER COLUMN estRegistro NVARCHAR(1);
+ALTER TABLE convenio.Mae_Beneficio ALTER COLUMN codSistema NVARCHAR(50);
+ALTER TABLE convenio.Mae_Beneficio ALTER COLUMN compania NVARCHAR(50);
+ALTER TABLE convenio.Mae_Beneficio ALTER COLUMN codBeneficio NVARCHAR(50);
+4. Configuración adicional en SqlServer.module.ts:
+typescriptoptions: {
+encrypt: true,
+trustServerCertificate: true,
+connectTimeout: 120000,    // 2 minutos
+requestTimeout: 60000,     // 1 minuto
+cancelTimeout: 60000,      // 1 minuto
+connectionRetryInterval: 2000,
+// Opciones adicionales para manejar NVARCHAR(MAX)
+tdsVersion: '7_4',
+packetSize: 16384         // Paquete más grande para NVARCHAR(MAX)
+},
