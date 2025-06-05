@@ -481,3 +481,42 @@ The statement has been terminated.
 Msg 40544, Level 17, State 12, Line 1
 The database 'db-sql-eu1-datos-desa01' has reached its size quota. Partition or delete data, drop indexes, or consult the documentation for possible resolutions.
 Total execution time: 00:01:45.558
+
+
+
+-- ALTER TABLE [convenio].[DiagnosticoBeneficio] ADD CONSTRAINT PK_DiagnosticoBeneficio PRIMARY KEY (idDiagnosticoBeneficio);
+-- For Diagnostico
+ALTER TABLE [convenio].[Diagnostico] ALTER COLUMN [idDiagnostico] NVARCHAR(36) NOT NULL;
+ALTER TABLE [convenio].[Diagnostico] ADD CONSTRAINT PK_Diagnostico PRIMARY KEY (idDiagnostico);
+
+-- For Mae_Beneficio
+ALTER TABLE [convenio].[Mae_Beneficio] ALTER COLUMN [idBeneficio] NVARCHAR(36) NOT NULL;
+ALTER TABLE [convenio].[Mae_Beneficio] ADD CONSTRAINT PK_Mae_Beneficio PRIMARY KEY (idBeneficio);
+```
+*   *Caution:* Altering data types on tables with data can be a long-running operation and might require data conversion. Test thoroughly in a development environment.
+Use code with caution.
+b. Change Data Types for cod... columns:
+* For columns like codDiagnostico, codBeneficio, codSistema, codGrupoDiagnostico, compania, estRegistro, use NVARCHAR(N) with an appropriate maximum length (e.g., NVARCHAR(10), NVARCHAR(50)) instead of NVARCHAR(MAX). estRegistro could even be CHAR(1).
+* Example:
+sql ALTER TABLE [convenio].[DiagnosticoBeneficio] ALTER COLUMN [codDiagnostico] NVARCHAR(50); ALTER TABLE [convenio].[DiagnosticoBeneficio] ALTER COLUMN [codBeneficio] NVARCHAR(50); ALTER TABLE [convenio].[DiagnosticoBeneficio] ALTER COLUMN [codSistema] NVARCHAR(10); ALTER TABLE [convenio].[DiagnosticoBeneficio] ALTER COLUMN [estRegistro] CHAR(1); -- Apply similar changes to other tables
+c. Add/Verify Indexes:
+* Ensure you have Primary Keys defined on idDiagnosticoBeneficio, idDiagnostico, and idBeneficio in their respective tables (this automatically creates a clustered index).
+* Foreign Key Columns: Create non-clustered indexes on the foreign key columns in DiagnosticoBeneficio:
+sql CREATE INDEX IX_DiagnosticoBeneficio_idDiagnostico ON [convenio].[DiagnosticoBeneficio](idDiagnostico); CREATE INDEX IX_DiagnosticoBeneficio_idBeneficio ON [convenio].[DiagnosticoBeneficio](idBeneficio);
+* Columns in WHERE clause:
+```sql
+-- For DiagnosticoBeneficio (compound index might be beneficial)
+CREATE INDEX IX_DiagnosticoBeneficio_idBeneficio_estRegistro ON [convenio].[DiagnosticoBeneficio](idBeneficio, estRegistro);
+-- or if idBeneficio is already indexed well, just estRegistro:
+-- CREATE INDEX IX_DiagnosticoBeneficio_estRegistro ON [convenio].DiagnosticoBeneficio;
+-- For Diagnostico
+CREATE INDEX IX_Diagnostico_estRegistro_codSistema ON [convenio].[Diagnostico](estRegistro, codSistema);
+
+-- For Mae_Beneficio
+CREATE INDEX IX_Mae_Beneficio_compania_estRegistro ON [convenio].[Mae_Beneficio](compania, estRegistro);
+```
+*   **Columns in ORDER BY clause:**
+```sql
+CREATE INDEX IX_Diagnostico_codDiagnostico ON [convenio].[Diagnostico](codDiagnostico);
+CREATE INDEX IX_Mae_Beneficio_codBeneficio ON [convenio].[Mae_Beneficio](codBeneficio);
+-- A covering index for the select and order by
