@@ -1122,3 +1122,262 @@ INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
 WHERE s.name = 'convenio'
 AND i.name LIKE '%Performance%'
 ORDER BY t.name, i.name, ic.key_ordinal;
+
+****************
+
+
+
+/*======================================================
+NÚMERO DE REQUERIMIENTO: Índices compatibles con Azure SQL Database
+NOMBRE ARTEFACTO: Índices de performance para estructura actual
+AUTOR: Sistema                    FECHA CREACIÓN: 2025-06-05
+OBJETIVO: Crear índices compatibles con Azure SQL Database
+considerando las limitaciones de campos NVARCHAR(MAX)
+======================================================*/
+
+-- =====================================================
+-- IMPORTANTES LIMITACIONES DE AZURE SQL DATABASE:
+-- 1. No se pueden indexar columnas NVARCHAR(MAX) o VARCHAR(MAX)
+-- 2. Las columnas MAX solo pueden ir en INCLUDE clause
+-- 3. Máximo 900 bytes por clave de índice
+-- =====================================================
+
+-- =====================================================
+-- PASO 1: VERIFICAR TIPOS DE DATOS ACTUALES
+-- =====================================================
+SELECT
+c.TABLE_NAME,
+c.COLUMN_NAME,
+c.DATA_TYPE,
+c.CHARACTER_MAXIMUM_LENGTH,
+c.IS_NULLABLE
+FROM INFORMATION_SCHEMA.COLUMNS c
+WHERE c.TABLE_SCHEMA = 'convenio'
+AND c.COLUMN_NAME IN ('compania', 'estRegistro', 'codSistema', 'idBeneficio', 'idDiagnostico')
+ORDER BY c.TABLE_NAME, c.COLUMN_NAME;
+
+-- =====================================================
+-- ÍNDICES PARA DiagnosticoBeneficio
+-- =====================================================
+
+-- ÍNDICE PRINCIPAL: Solo campos indexables en KEY
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_01
+ON [convenio].[DiagnosticoBeneficio] ([estRegistro])
+INCLUDE ([idDiagnosticoBeneficio], [idDiagnostico], [idBeneficio], [codDiagnostico], [codBeneficio], [codSistema], [fecCreacionsSistema]);
+
+-- ÍNDICE PARA FILTRO IN: Solo si idBeneficio no es MAX
+-- Verificar primero si idBeneficio es indexable
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = 'convenio'
+AND TABLE_NAME = 'DiagnosticoBeneficio'
+AND COLUMN_NAME = 'idBeneficio'
+AND (DATA_TYPE NOT LIKE '%max%' OR CHARACTER_MAXIMUM_LENGTH < 900))
+BEGIN
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_02
+ON [convenio].[DiagnosticoBeneficio] ([estRegistro])
+INCLUDE ([idDiagnosticoBeneficio], [idDiagnostico], [idBeneficio], [codDiagnostico], [codBeneficio], [codSistema]);
+PRINT 'Índice IX_DiagnosticoBeneficio_Performance_02 creado exitosamente';
+END
+ELSE
+BEGIN
+PRINT 'ADVERTENCIA: idBeneficio es NVARCHAR(MAX), no se puede indexar directamente';
+END
+
+-- ÍNDICE PARA JOIN con Diagnostico
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_03
+ON [convenio].[DiagnosticoBeneficio] ([estRegistro])
+INCLUDE ([idDiagnostico], [idBeneficio], [codDiagnostico], [codBeneficio]);
+
+-- =====================================================
+-- ÍNDICES PARA Diagnostico
+-- =====================================================
+
+-- ÍNDICE PRINCIPAL: Campos indexables
+CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_01
+ON [convenio].[Diagnostico] ([estRegistro])
+INCLUDE ([idDiagnostico], [codDiagnostico], [descripcionDiagnostico], [desTipDiagnostico], [codGrupoDiagnostico], [codSistema], [fecCreacionSistema]);
+
+-- ÍNDICE PARA codSistema si es indexable
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = 'convenio'
+AND TABLE_NAME = 'Diagnostico'
+AND COLUMN_NAME = 'codSistema'
+AND (DATA_TYPE NOT LIKE '%max%' OR CHARACTER_MAXIMUM_LENGTH < 900))
+BEGIN
+CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_02
+ON [convenio].[Diagnostico] ([estRegistro])
+INCLUDE ([idDiagnostico], [codDiagnostico], [descripcionDiagnostico], [codSistema]);
+PRINT 'Índice IX_Diagnostico_Performance_02 creado exitosamente';
+END
+
+-- ÍNDICE PARA JOIN
+CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_03
+ON [convenio].[Diagnostico] ([estRegistro])
+INCLUDE ([idDiagnostico], [codDiagnostico], [descripcionDiagnostico], [desTipDiagnostico], [codGrupoDiagnostico]);
+
+-- =====================================================
+-- ÍNDICES PARA Mae_Beneficio
+-- =====================================================
+
+-- ÍNDICE PRINCIPAL: estRegistro indexable, compania en INCLUDE
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Performance_01
+ON [convenio].[Mae_Beneficio] ([estRegistro])
+INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida], [codGrupoBeneficio], [codSistema], [compania]);
+
+-- ÍNDICE ALTERNATIVO para búsquedas por beneficio
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Performance_02
+ON [convenio].[Mae_Beneficio] ([estRegistro])
+INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida], [compania]);
+
+-- =====================================================
+-- ESTRATEGIA ALTERNATIVA: COLUMNAS COMPUTADAS
+-- =====================================================
+
+-- Crear columnas computadas para indexar campos MAX (si es necesario)
+-- Esto permite indexar los primeros N caracteres de campos MAX
+
+-- Columna computada para compania (primeros 10 caracteres)
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('convenio.Mae_Beneficio') AND name = 'compania_computed')
+BEGIN
+ALTER TABLE [convenio].[Mae_Beneficio]
+ADD [compania_computed] AS (LEFT(COALESCE([compania], ''), 10)) PERSISTED;
+
+-- Ahora crear índice en la columna computada
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_CompaniaComputed
+ON [convenio].[Mae_Beneficio] ([compania_computed], [estRegistro])
+INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida]);
+
+PRINT 'Columna computada compania_computed creada e indexada';
+END
+
+-- =====================================================
+-- ÍNDICES ESPECÍFICOS PARA LA QUERY PROBLEMÁTICA
+-- =====================================================
+
+-- ÍNDICE ESPECIALIZADO: Para el WHERE con múltiples condiciones
+-- Enfocado en estRegistro que es el más selectivo y indexable
+CREATE NONCLUSTERED INDEX IX_Query_Optimization_01
+ON [convenio].[DiagnosticoBeneficio] ([estRegistro])
+INCLUDE ([idDiagnosticoBeneficio], [idDiagnostico], [idBeneficio], [codDiagnostico], [codBeneficio], [codSistema], [fecCreacionsSistema]);
+
+CREATE NONCLUSTERED INDEX IX_Query_Optimization_02
+ON [convenio].[Diagnostico] ([estRegistro])
+INCLUDE ([idDiagnostico], [codDiagnostico], [descripcionDiagnostico], [desTipDiagnostico], [codGrupoDiagnostico], [codSistema], [fecCreacionSistema]);
+
+CREATE NONCLUSTERED INDEX IX_Query_Optimization_03
+ON [convenio].[Mae_Beneficio] ([estRegistro])
+INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida], [codGrupoBeneficio], [codSistema], [compania]);
+
+-- =====================================================
+-- QUERY OPTIMIZADA PARA ESTRUCTURA ACTUAL
+-- =====================================================
+/*
+-- VERSIÓN OPTIMIZADA considerando limitaciones de Azure SQL
+
+-- OPCIÓN 1: Filtrar por compania usando LIKE si es necesario
+SELECT
+    -- Datos del diagnóstico
+    d.idDiagnostico,
+    d.codDiagnostico,
+    d.descripcionDiagnostico,
+    d.desTipDiagnostico,
+    d.codGrupoDiagnostico,
+    d.estRegistro as estadoRegistroDiagnostico,
+    d.codSistema as codigoSistemaDiagnostico,
+    d.fecCreacionSistema as fechaCreacionDiagnostico,
+
+    -- Datos del beneficio
+    b.idBeneficio,
+    b.codBeneficio,
+    b.descripcion as descripcionBeneficio,
+    b.desResumida as nombreBeneficio,
+    b.codGrupoBeneficio,
+    b.estRegistro as estadoRegistroBeneficio,
+    b.codSistema as codigoSistemaBeneficio,
+    b.compania as companiaBeneficio,
+
+    -- Datos de la relación
+    db.estRegistro as estadoRelacion,
+    db.fecCreacionsSistema as fechaAsociacion
+
+FROM [convenio].[DiagnosticoBeneficio] db
+INNER JOIN [convenio].[Diagnostico] d ON d.idDiagnostico = db.idDiagnostico
+INNER JOIN [convenio].[Mae_Beneficio] b ON db.idBeneficio = b.idBeneficio
+WHERE db.estRegistro = 'V'
+    AND d.estRegistro = 'V'
+    AND (d.codSistema LIKE 'NVS%' OR d.codSistema = 'NVS')
+    AND (b.compania LIKE '20002%' OR b.compania = '20002')
+    AND db.idBeneficio IN ('01JTGQEW5WM4CCMC4M74Q9AZ4T', '01JTGQEW5WV9XKN57PJVHEW6VW', '01JTGQEW5M3X3RQQPDY399WBK9', '01JTGQEW5MMNTHQGB79Z4KACGX')
+ORDER BY
+    CASE WHEN LEN(d.codDiagnostico) <= 100 THEN d.codDiagnostico ELSE LEFT(d.codDiagnostico, 100) END,
+    CASE WHEN LEN(b.codBeneficio) <= 100 THEN b.codBeneficio ELSE LEFT(b.codBeneficio, 100) END
+OFFSET 0 ROWS
+FETCH NEXT 10 ROWS ONLY;
+
+-- OPCIÓN 2: Usar tabla temporal para filtros complejos
+-- Esta opción puede ser más eficiente para el filtro IN con IDs largos
+
+CREATE TABLE #TempBeneficios (idBeneficio NVARCHAR(MAX));
+INSERT INTO #TempBeneficios VALUES
+('01JTGQEW5WM4CCMC4M74Q9AZ4T'),
+('01JTGQEW5WV9XKN57PJVHEW6VW'),
+('01JTGQEW5M3X3RQQPDY399WBK9'),
+('01JTGQEW5MMNTHQGB79Z4KACGX');
+
+SELECT [mismas columnas que arriba]
+FROM [convenio].[DiagnosticoBeneficio] db
+INNER JOIN #TempBeneficios tb ON db.idBeneficio = tb.idBeneficio
+INNER JOIN [convenio].[Diagnostico] d ON d.idDiagnostico = db.idDiagnostico
+INNER JOIN [convenio].[Mae_Beneficio] b ON db.idBeneficio = b.idBeneficio
+WHERE db.estRegistro = 'V'
+    AND d.estRegistro = 'V'
+    AND d.codSistema LIKE 'NVS%'
+    AND b.compania LIKE '20002%'
+ORDER BY d.codDiagnostico, b.codBeneficio
+OFFSET 0 ROWS
+FETCH NEXT 10 ROWS ONLY;
+
+DROP TABLE #TempBeneficios;
+*/
+
+-- =====================================================
+-- RECOMENDACIÓN: OPTIMIZAR TIPOS DE DATOS
+-- =====================================================
+/*
+PARA MÁXIMO RENDIMIENTO, CONSIDERA EJECUTAR PRIMERO:
+
+-- 1. Cambiar tipos de datos problemáticos
+ALTER TABLE [convenio].[Mae_Beneficio] ALTER COLUMN [compania] VARCHAR(20);
+ALTER TABLE [convenio].[Diagnostico] ALTER COLUMN [codSistema] VARCHAR(10);
+
+-- 2. Luego crear índices optimizados
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Optimized
+ON [convenio].[Mae_Beneficio] ([compania], [estRegistro])
+INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida]);
+
+-- Esto permitirá un rendimiento mucho mejor
+*/
+
+-- =====================================================
+-- VALIDACIÓN
+-- =====================================================
+
+-- Verificar índices creados
+SELECT
+t.name AS TableName,
+i.name AS IndexName,
+i.type_desc AS IndexType,
+COL_NAME(ic.object_id, ic.column_id) AS ColumnName,
+ic.is_included_column,
+ic.key_ordinal
+FROM sys.tables t
+INNER JOIN sys.indexes i ON t.object_id = i.object_id
+INNER JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+WHERE s.name = 'convenio'
+AND i.name LIKE '%Performance%'
+ORDER BY t.name, i.name, ic.key_ordinal;
+
+PRINT 'Índices compatibles con Azure SQL Database creados exitosamente.';
+PRINT 'RECOMENDACIÓN: Para máximo rendimiento, considera cambiar los tipos de datos NVARCHAR(MAX) a tamaños específicos.';
+PRINT 'Esto permitirá crear índices más eficientes en las columnas clave.';
