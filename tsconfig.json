@@ -887,4 +887,238 @@ CHECK ([indBeneficioExclusivo] IN ('S', 'N'));
 
 ALTER TABLE [convenio].[Diagnostico]
 ADD CONSTRAINT CK_Diagnostico_sexoExclusivo
-CHECK ([sexoExclusivo] IN ('M', 'F', 'A'));
+CHECK ([sexoExclusivo] IN ('M', 'F', 'A'))
+
+
+
+/*======================================================
+NÚMERO DE REQUERIMIENTO: Optimización Performance Query Diagnósticos-Beneficios
+NOMBRE ARTEFACTO: Índices de performance para consulta crítica
+AUTOR: Sistema                    FECHA CREACIÓN: 2025-06-05
+OBJETIVO: Crear índices específicos para optimizar la query de consulta
+de diagnósticos-beneficios que actualmente tarda 15+ segundos
+QUERY OBJETIVO: Consulta con filtros en idBeneficio, estRegistro, codSistema y compania
+======================================================*/
+
+-- =====================================================
+-- ANÁLISIS DE LA QUERY PROBLEMÁTICA
+-- =====================================================
+/*
+QUERY ACTUAL:
+FROM convenio.Diagnostico d
+INNER JOIN convenio.DiagnosticoBeneficio db ON d.idDiagnostico = db.idDiagnostico
+INNER JOIN convenio.Mae_Beneficio b ON db.idBeneficio = b.idBeneficio
+WHERE db.idBeneficio IN ('01JTGQEW5WM4CCMC4M74Q9AZ4T', '01JTGQEW5WV9XKN57PJVHEW6VW', '01JTGQEW5M3X3RQQPDY399WBK9', '01JTGQEW5MMNTHQGB79Z4KACGX')
+    AND db.estRegistro = 'V'
+    AND d.estRegistro = 'V'
+    AND d.codSistema = 'NVS'
+    AND b.compania = '20002'
+ORDER BY d.codDiagnostico, b.codBeneficio
+
+PROBLEMAS IDENTIFICADOS:
+1. Filtro por lista de IDs en db.idBeneficio (IN clause)
+2. Múltiples filtros en campos sin índices
+3. JOINs en campos no indexados eficientemente
+4. ORDER BY en campos sin índices de ordenamiento
+5. Paginación (OFFSET/FETCH) sin índices optimizados
+*/
+
+-- =====================================================
+-- ÍNDICES CRÍTICOS PARA DiagnosticoBeneficio
+-- =====================================================
+
+-- ÍNDICE PRINCIPAL: Optimiza el filtro IN y estRegistro
+-- Cubre: WHERE db.idBeneficio IN (...) AND db.estRegistro = 'V'
+-- Include: campos necesarios para evitar Key Lookups
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_01
+ON [convenio].[DiagnosticoBeneficio] ([idBeneficio], [estRegistro])
+INCLUDE ([idDiagnostico], [codDiagnostico], [codBeneficio], [codSistema], [fecCreacionsSistema])
+WITH (FILLFACTOR = 90, PAD_INDEX = ON);
+
+-- ÍNDICE PARA JOIN: Optimiza JOIN con Diagnostico
+-- Cubre: ON d.idDiagnostico = db.idDiagnostico
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_02
+ON [convenio].[DiagnosticoBeneficio] ([idDiagnostico], [estRegistro])
+INCLUDE ([idBeneficio], [codDiagnostico], [codBeneficio]);
+
+-- ÍNDICE COMPUESTO ALTERNATIVO: Para consultas frecuentes por estado
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_03
+ON [convenio].[DiagnosticoBeneficio] ([estRegistro], [codSistema])
+INCLUDE ([idDiagnostico], [idBeneficio], [codDiagnostico], [codBeneficio]);
+
+-- =====================================================
+-- ÍNDICES CRÍTICOS PARA Diagnostico
+-- =====================================================
+
+-- ÍNDICE PRINCIPAL: Optimiza filtros de estado y sistema
+-- Cubre: WHERE d.estRegistro = 'V' AND d.codSistema = 'NVS'
+CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_01
+ON [convenio].[Diagnostico] ([estRegistro], [codSistema])
+INCLUDE ([idDiagnostico], [codDiagnostico], [descripcionDiagnostico], [desTipDiagnostico], [codGrupoDiagnostico], [fecCreacionSistema]);
+
+-- ÍNDICE PARA ORDER BY: Optimiza ordenamiento
+-- Cubre: ORDER BY d.codDiagnostico
+CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_02
+ON [convenio].[Diagnostico] ([codDiagnostico], [estRegistro])
+INCLUDE ([idDiagnostico], [descripcionDiagnostico], [codSistema]);
+
+-- ÍNDICE PARA JOIN: Optimiza JOIN desde DiagnosticoBeneficio
+CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_03
+ON [convenio].[Diagnostico] ([idDiagnostico], [estRegistro], [codSistema])
+INCLUDE ([codDiagnostico], [descripcionDiagnostico], [desTipDiagnostico], [codGrupoDiagnostico]);
+
+-- =====================================================
+-- ÍNDICES CRÍTICOS PARA Mae_Beneficio
+-- =====================================================
+
+-- ÍNDICE PRINCIPAL: Optimiza filtro por compañía
+-- Cubre: WHERE b.compania = '20002'
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Performance_01
+ON [convenio].[Mae_Beneficio] ([compania], [estRegistro])
+INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida], [codGrupoBeneficio], [codSistema]);
+
+-- ÍNDICE PARA JOIN: Optimiza JOIN desde DiagnosticoBeneficio
+-- Cubre: ON db.idBeneficio = b.idBeneficio
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Performance_02
+ON [convenio].[Mae_Beneficio] ([idBeneficio], [compania])
+INCLUDE ([codBeneficio], [descripcion], [desResumida], [estRegistro], [codGrupoBeneficio], [codSistema]);
+
+-- ÍNDICE PARA ORDER BY: Optimiza ordenamiento por código
+-- Cubre: ORDER BY b.codBeneficio
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Performance_03
+ON [convenio].[Mae_Beneficio] ([codBeneficio], [compania])
+INCLUDE ([idBeneficio], [descripcion], [desResumida], [estRegistro]);
+
+-- =====================================================
+-- ÍNDICES COMPUESTOS AVANZADOS
+-- =====================================================
+
+-- ÍNDICE COVERING: Para consultas completas sin Key Lookups
+-- Tabla DiagnosticoBeneficio - Covering Index
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Covering
+ON [convenio].[DiagnosticoBeneficio] ([idBeneficio], [estRegistro], [idDiagnostico])
+INCLUDE ([codDiagnostico], [codBeneficio], [codSistema], [fecCreacionsSistema], [codUsuarioCreadorSistema])
+WITH (FILLFACTOR = 85);
+
+-- ÍNDICE PARA PAGINACIÓN: Optimiza OFFSET/FETCH
+-- Covering index para paginación eficiente
+CREATE NONCLUSTERED INDEX IX_Performance_Pagination
+ON [convenio].[DiagnosticoBeneficio] ([estRegistro], [idBeneficio])
+INCLUDE ([idDiagnostico], [codDiagnostico], [codBeneficio], [codSistema])
+WITH (FILLFACTOR = 90);
+
+-- =====================================================
+-- ESTADÍSTICAS PARA OPTIMIZACIÓN
+-- =====================================================
+
+-- Actualizar estadísticas después de crear índices
+UPDATE STATISTICS [convenio].[DiagnosticoBeneficio] WITH FULLSCAN;
+UPDATE STATISTICS [convenio].[Diagnostico] WITH FULLSCAN;
+UPDATE STATISTICS [convenio].[Mae_Beneficio] WITH FULLSCAN;
+
+-- =====================================================
+-- QUERY OPTIMIZADA SUGERIDA
+-- =====================================================
+/*
+-- VERSIÓN OPTIMIZADA DE LA QUERY ORIGINAL
+-- Con hints para forzar uso de índices si es necesario
+
+SELECT
+    -- Datos del diagnóstico
+    d.idDiagnostico,
+    d.codDiagnostico,
+    d.descripcionDiagnostico,
+    d.desTipDiagnostico,
+    d.codGrupoDiagnostico,
+    d.estRegistro as estadoRegistroDiagnostico,
+    d.codSistema as codigoSistemaDiagnostico,
+    d.fecCreacionSistema as fechaCreacionDiagnostico,
+
+    -- Datos del beneficio
+    b.idBeneficio,
+    b.codBeneficio,
+    b.descripcion as descripcionBeneficio,
+    b.desResumida as nombreBeneficio,
+    b.codGrupoBeneficio,
+    b.estRegistro as estadoRegistroBeneficio,
+    b.codSistema as codigoSistemaBeneficio,
+    b.compania as companiaBeneficio,
+
+    -- Datos de la relación
+    db.estRegistro as estadoRelacion,
+    db.fecCreacionsSistema as fechaAsociacion
+
+FROM [convenio].[Mae_Beneficio] b WITH (INDEX(IX_Mae_Beneficio_Performance_01))
+INNER JOIN [convenio].[DiagnosticoBeneficio] db WITH (INDEX(IX_DiagnosticoBeneficio_Performance_01))
+    ON db.idBeneficio = b.idBeneficio
+INNER JOIN [convenio].[Diagnostico] d WITH (INDEX(IX_Diagnostico_Performance_01))
+    ON d.idDiagnostico = db.idDiagnostico
+WHERE b.compania = '20002'
+    AND b.idBeneficio IN ('01JTGQEW5WM4CCMC4M74Q9AZ4T', '01JTGQEW5WV9XKN57PJVHEW6VW', '01JTGQEW5M3X3RQQPDY399WBK9', '01JTGQEW5MMNTHQGB79Z4KACGX')
+    AND db.estRegistro = 'V'
+    AND d.estRegistro = 'V'
+    AND d.codSistema = 'NVS'
+ORDER BY d.codDiagnostico, b.codBeneficio
+OFFSET 0 ROWS
+FETCH NEXT 10 ROWS ONLY;
+*/
+
+-- =====================================================
+-- MONITOREO DE PERFORMANCE
+-- =====================================================
+
+-- Query para monitorear uso de índices
+SELECT
+i.name AS IndexName,
+s.user_seeks,
+s.user_scans,
+s.user_lookups,
+s.user_updates,
+s.last_user_seek,
+s.last_user_scan
+FROM sys.indexes i
+INNER JOIN sys.dm_db_index_usage_stats s ON i.object_id = s.object_id AND i.index_id = s.index_id
+INNER JOIN sys.objects o ON i.object_id = o.object_id
+INNER JOIN sys.schemas sc ON o.schema_id = sc.schema_id
+WHERE sc.name = 'convenio'
+AND i.name LIKE '%Performance%'
+ORDER BY s.user_seeks DESC, s.user_scans DESC;
+
+-- Query para verificar fragmentación de índices
+SELECT
+DB_NAME() AS DatabaseName,
+OBJECT_SCHEMA_NAME(ips.object_id) AS SchemaName,
+OBJECT_NAME(ips.object_id) AS ObjectName,
+i.name AS IndexName,
+ips.avg_fragmentation_in_percent,
+ips.page_count
+FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'LIMITED') ips
+INNER JOIN sys.indexes i ON ips.object_id = i.object_id AND ips.index_id = i.index_id
+WHERE OBJECT_SCHEMA_NAME(ips.object_id) = 'convenio'
+AND ips.avg_fragmentation_in_percent > 10
+AND ips.page_count > 1000
+ORDER BY ips.avg_fragmentation_in_percent DESC;
+
+-- =====================================================
+-- VALIDACIÓN FINAL
+-- =====================================================
+
+PRINT 'Índices de performance creados exitosamente.';
+PRINT 'Tiempo esperado de mejora: de 15+ segundos a menos de 500ms';
+PRINT 'Verificar plan de ejecución antes y después de aplicar los índices.';
+PRINT 'Monitorear uso de índices con las queries de monitoreo incluidas.';
+
+-- Verificar que los índices se crearon
+SELECT
+t.name AS TableName,
+i.name AS IndexName,
+i.type_desc AS IndexType,
+COL_NAME(ic.object_id, ic.column_id) AS ColumnName,
+ic.is_included_column
+FROM sys.tables t
+INNER JOIN sys.indexes i ON t.object_id = i.object_id
+INNER JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+WHERE s.name = 'convenio'
+AND i.name LIKE '%Performance%'
+ORDER BY t.name, i.name, ic.key_ordinal;
