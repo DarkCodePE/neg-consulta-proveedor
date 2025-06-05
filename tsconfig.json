@@ -520,3 +520,371 @@ CREATE INDEX IX_Mae_Beneficio_compania_estRegistro ON [convenio].[Mae_Beneficio]
 CREATE INDEX IX_Diagnostico_codDiagnostico ON [convenio].[Diagnostico](codDiagnostico);
 CREATE INDEX IX_Mae_Beneficio_codBeneficio ON [convenio].[Mae_Beneficio](codBeneficio);
 -- A covering index for the select and order by
+
+
+
+
+/*======================================================
+NÚMERO DE REQUERIMIENTO: Optimización de Tablas Convenio
+NOMBRE ARTEFACTO: Optimización de campos y creación de índices
+AUTOR: Sistema                    FECHA CREACIÓN: 2025-06-05
+OBJETIVO: Optimizar los tipos de datos y crear índices apropiados
+para las tablas del esquema convenio según estándares Pacífico Salud
+======================================================*/
+
+-- =====================================================
+-- TABLA: DiagnosticoBeneficio
+-- =====================================================
+
+-- Cambiar tipos de datos para DiagnosticoBeneficio
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ALTER COLUMN [idDiagnosticoBeneficio] VARCHAR(26) NULL;
+
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ALTER COLUMN [idDiagnostico] VARCHAR(26) NULL;
+
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ALTER COLUMN [idBeneficio] VARCHAR(26) NULL;
+
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ALTER COLUMN [codDiagnostico] CHAR(5) NULL;
+
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ALTER COLUMN [codBeneficio] CHAR(5) NULL;
+
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ALTER COLUMN [codSistema] CHAR(5) NULL;
+
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ALTER COLUMN [estRegistro] CHAR(1) NULL;
+
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ALTER COLUMN [codUsuarioCreadorSistema] VARCHAR(15) NULL;
+
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ALTER COLUMN [codUsuarioUpdateSistema] VARCHAR(15) NULL;
+
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ALTER COLUMN [codUsuarioCreador] VARCHAR(15) NULL;
+
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ALTER COLUMN [codUsuarioUpdate] VARCHAR(15) NULL;
+
+-- =====================================================
+-- TABLA: Diagnostico
+-- =====================================================
+
+-- Cambiar tipos de datos para Diagnostico
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [idDiagnostico] VARCHAR(26) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [codDiagnostico] CHAR(5) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [descripcionDiagnostico] VARCHAR(150) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [desTipDiagnostico] VARCHAR(20) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [codGrupoDiagnostico] CHAR(5) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [nivelDiagnostico] CHAR(1) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [indBeneficioCompartido] CHAR(1) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [indRequiereCartaGarantia] CHAR(1) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [indBeneficioExclusivo] CHAR(1) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [tipoPEAS] VARCHAR(1) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [sexoExclusivo] CHAR(1) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [codSistema] CHAR(5) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [estRegistro] CHAR(1) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [codUsuarioCreadorSistema] VARCHAR(15) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [codUsuarioUpdateSistema] VARCHAR(15) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [codUsuarioCreador] VARCHAR(15) NULL;
+
+ALTER TABLE [convenio].[Diagnostico]
+ALTER COLUMN [codUsuarioUpdate] VARCHAR(15) NULL;
+
+-- =====================================================
+-- TABLA: Mae_Beneficio
+-- =====================================================
+
+-- Cambiar tipos de datos para Mae_Beneficio
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [idBeneficio] VARCHAR(26) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [idGrupoBeneficio] VARCHAR(26) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [idTipoCobertura] VARCHAR(26) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [idSubtipoCobertura] VARCHAR(26) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [codBeneficio] CHAR(3) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [descripcion] VARCHAR(80) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [desResumida] VARCHAR(20) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [codGrupoBeneficio] CHAR(3) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [codCobertura] CHAR(1) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [subtipoCobert] CHAR(3) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [estRegistro] CHAR(1) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [codSistema] CHAR(5) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [compania] CHAR(5) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [codUsuarioCreadorSistema] VARCHAR(15) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [codUsuarioUpdateSistema] VARCHAR(15) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [codUsuarioCreador] VARCHAR(15) NULL;
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ALTER COLUMN [codUsuarioUpdate] VARCHAR(15) NULL;
+
+-- =====================================================
+-- TABLA: Mae_TipoCobertura
+-- =====================================================
+
+-- Cambiar tipos de datos para Mae_TipoCobertura
+ALTER TABLE [convenio].[Mae_TipoCobertura]
+ALTER COLUMN [idTipoCobertura] VARCHAR(26) NULL;
+
+ALTER TABLE [convenio].[Mae_TipoCobertura]
+ALTER COLUMN [codCobertura] CHAR(1) NULL;
+
+ALTER TABLE [convenio].[Mae_TipoCobertura]
+ALTER COLUMN [descripcionTipo] VARCHAR(26) NULL;
+
+ALTER TABLE [convenio].[Mae_TipoCobertura]
+ALTER COLUMN [estRegistro] CHAR(1) NULL;
+
+ALTER TABLE [convenio].[Mae_TipoCobertura]
+ALTER COLUMN [codUsuarioCreador] VARCHAR(15) NULL;
+
+ALTER TABLE [convenio].[Mae_TipoCobertura]
+ALTER COLUMN [codUsuarioUpdate] VARCHAR(15) NULL;
+
+-- =====================================================
+-- TABLA: GrupoBeneficio
+-- =====================================================
+
+-- Cambiar tipos de datos para GrupoBeneficio
+ALTER TABLE [convenio].[GrupoBeneficio]
+ALTER COLUMN [idGrupoBeneficio] VARCHAR(26) NULL;
+
+ALTER TABLE [convenio].[GrupoBeneficio]
+ALTER COLUMN [codGrupoBeneficio] CHAR(8) NULL;
+
+ALTER TABLE [convenio].[GrupoBeneficio]
+ALTER COLUMN [descripcionGrupoBeneficio] VARCHAR(30) NULL;
+
+ALTER TABLE [convenio].[GrupoBeneficio]
+ALTER COLUMN [codSistema] CHAR(5) NULL;
+
+ALTER TABLE [convenio].[GrupoBeneficio]
+ALTER COLUMN [estRegistro] CHAR(1) NULL;
+
+ALTER TABLE [convenio].[GrupoBeneficio]
+ALTER COLUMN [codUsuarioCreadorSistema] VARCHAR(15) NULL;
+
+ALTER TABLE [convenio].[GrupoBeneficio]
+ALTER COLUMN [codUsuarioUpdateSistema] VARCHAR(15) NULL;
+
+ALTER TABLE [convenio].[GrupoBeneficio]
+ALTER COLUMN [codUsuarioCreador] VARCHAR(15) NULL;
+
+ALTER TABLE [convenio].[GrupoBeneficio]
+ALTER COLUMN [codUsuarioUpdate] VARCHAR(15) NULL;
+
+-- =====================================================
+-- CREACIÓN DE PRIMARY KEYS
+-- =====================================================
+
+-- Primary Key para DiagnosticoBeneficio
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ADD CONSTRAINT PK_DiagnosticoBeneficio PRIMARY KEY ([idDiagnosticoBeneficio]);
+
+-- Primary Key para Diagnostico
+ALTER TABLE [convenio].[Diagnostico]
+ADD CONSTRAINT PK_Diagnostico PRIMARY KEY ([idDiagnostico]);
+
+-- Primary Key para Mae_Beneficio
+ALTER TABLE [convenio].[Mae_Beneficio]
+ADD CONSTRAINT PK_Mae_Beneficio PRIMARY KEY ([idBeneficio]);
+
+-- Primary Key para Mae_TipoCobertura
+ALTER TABLE [convenio].[Mae_TipoCobertura]
+ADD CONSTRAINT PK_Mae_TipoCobertura PRIMARY KEY ([idTipoCobertura]);
+
+-- Primary Key para GrupoBeneficio
+ALTER TABLE [convenio].[GrupoBeneficio]
+ADD CONSTRAINT PK_GrupoBeneficio PRIMARY KEY ([idGrupoBeneficio]);
+
+-- =====================================================
+-- CREACIÓN DE FOREIGN KEYS
+-- =====================================================
+
+-- Foreign Key: DiagnosticoBeneficio -> Diagnostico
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ADD CONSTRAINT FK_DiagnosticoBeneficio_Diagnostico
+FOREIGN KEY ([idDiagnostico]) REFERENCES [convenio].[Diagnostico]([idDiagnostico]);
+
+-- Foreign Key: DiagnosticoBeneficio -> Mae_Beneficio
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ADD CONSTRAINT FK_DiagnosticoBeneficio_Mae_Beneficio
+FOREIGN KEY ([idBeneficio]) REFERENCES [convenio].[Mae_Beneficio]([idBeneficio]);
+
+-- Foreign Key: Mae_Beneficio -> GrupoBeneficio
+ALTER TABLE [convenio].[Mae_Beneficio]
+ADD CONSTRAINT FK_Mae_Beneficio_GrupoBeneficio
+FOREIGN KEY ([idGrupoBeneficio]) REFERENCES [convenio].[GrupoBeneficio]([idGrupoBeneficio]);
+
+-- Foreign Key: Mae_Beneficio -> Mae_TipoCobertura
+ALTER TABLE [convenio].[Mae_Beneficio]
+ADD CONSTRAINT FK_Mae_Beneficio_Mae_TipoCobertura
+FOREIGN KEY ([idTipoCobertura]) REFERENCES [convenio].[Mae_TipoCobertura]([idTipoCobertura]);
+
+-- =====================================================
+-- CREACIÓN DE ÍNDICES OPTIMIZADOS
+-- =====================================================
+
+-- Índices para DiagnosticoBeneficio
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_01
+ON [convenio].[DiagnosticoBeneficio]([codDiagnostico], [codBeneficio]);
+
+CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_02
+ON [convenio].[DiagnosticoBeneficio]([estRegistro]);
+
+-- Índices para Diagnostico
+CREATE NONCLUSTERED INDEX IX_Diagnostico_01
+ON [convenio].[Diagnostico]([codDiagnostico]);
+
+CREATE NONCLUSTERED INDEX IX_Diagnostico_02
+ON [convenio].[Diagnostico]([estRegistro], [codSistema]);
+
+CREATE NONCLUSTERED INDEX IX_Diagnostico_03
+ON [convenio].[Diagnostico]([codGrupoDiagnostico]);
+
+-- Índices para Mae_Beneficio
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_01
+ON [convenio].[Mae_Beneficio]([codBeneficio]);
+
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_02
+ON [convenio].[Mae_Beneficio]([estRegistro], [codSistema]);
+
+CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_03
+ON [convenio].[Mae_Beneficio]([codGrupoBeneficio]);
+
+-- Índices para Mae_TipoCobertura
+CREATE NONCLUSTERED INDEX IX_Mae_TipoCobertura_01
+ON [convenio].[Mae_TipoCobertura]([codCobertura]);
+
+CREATE NONCLUSTERED INDEX IX_Mae_TipoCobertura_02
+ON [convenio].[Mae_TipoCobertura]([estRegistro]);
+
+-- Índices para GrupoBeneficio
+CREATE NONCLUSTERED INDEX IX_GrupoBeneficio_01
+ON [convenio].[GrupoBeneficio]([codGrupoBeneficio]);
+
+CREATE NONCLUSTERED INDEX IX_GrupoBeneficio_02
+ON [convenio].[GrupoBeneficio]([estRegistro], [codSistema]);
+
+-- =====================================================
+-- UNIQUE CONSTRAINTS
+-- =====================================================
+
+-- Unique constraint para códigos únicos
+ALTER TABLE [convenio].[Diagnostico]
+ADD CONSTRAINT UK_Diagnostico_codDiagnostico UNIQUE ([codDiagnostico]);
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ADD CONSTRAINT UK_Mae_Beneficio_codBeneficio UNIQUE ([codBeneficio]);
+
+ALTER TABLE [convenio].[Mae_TipoCobertura]
+ADD CONSTRAINT UK_Mae_TipoCobertura_codCobertura UNIQUE ([codCobertura]);
+
+ALTER TABLE [convenio].[GrupoBeneficio]
+ADD CONSTRAINT UK_GrupoBeneficio_codGrupoBeneficio UNIQUE ([codGrupoBeneficio]);
+
+-- =====================================================
+-- CHECK CONSTRAINTS
+-- =====================================================
+
+-- Check constraints para campos de estado
+ALTER TABLE [convenio].[DiagnosticoBeneficio]
+ADD CONSTRAINT CK_DiagnosticoBeneficio_estRegistro
+CHECK ([estRegistro] IN ('A', 'I', 'E'));
+
+ALTER TABLE [convenio].[Diagnostico]
+ADD CONSTRAINT CK_Diagnostico_estRegistro
+CHECK ([estRegistro] IN ('A', 'I', 'E'));
+
+ALTER TABLE [convenio].[Mae_Beneficio]
+ADD CONSTRAINT CK_Mae_Beneficio_estRegistro
+CHECK ([estRegistro] IN ('A', 'I', 'E'));
+
+ALTER TABLE [convenio].[Mae_TipoCobertura]
+ADD CONSTRAINT CK_Mae_TipoCobertura_estRegistro
+CHECK ([estRegistro] IN ('A', 'I', 'E'));
+
+ALTER TABLE [convenio].[GrupoBeneficio]
+ADD CONSTRAINT CK_GrupoBeneficio_estRegistro
+CHECK ([estRegistro] IN ('A', 'I', 'E'));
+
+-- Check constraints para campos de indicadores
+ALTER TABLE [convenio].[Diagnostico]
+ADD CONSTRAINT CK_Diagnostico_indBeneficioCompartido
+CHECK ([indBeneficioCompartido] IN ('S', 'N'));
+
+ALTER TABLE [convenio].[Diagnostico]
+ADD CONSTRAINT CK_Diagnostico_indRequiereCartaGarantia
+CHECK ([indRequiereCartaGarantia] IN ('S', 'N'));
+
+ALTER TABLE [convenio].[Diagnostico]
+ADD CONSTRAINT CK_Diagnostico_indBeneficioExclusivo
+CHECK ([indBeneficioExclusivo] IN ('S', 'N'));
+
+ALTER TABLE [convenio].[Diagnostico]
+ADD CONSTRAINT CK_Diagnostico_sexoExclusivo
+CHECK ([sexoExclusivo] IN ('M', 'F', 'A'));
