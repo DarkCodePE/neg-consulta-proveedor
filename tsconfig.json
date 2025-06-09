@@ -519,3 +519,370 @@ VENTAJAS:
 ✅ IDs externos desde pipeline
 ✅ Logs completos de integración
 */
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Mae_CompaniaSeguro](
+	[IdCompaniaSeguro] [uniqueidentifier] NOT NULL,
+	[IdPersonaJuridica] [uniqueidentifier] NOT NULL,
+	[CodigoIAFA] [varchar](5) NOT NULL,
+	[DescripcionCompaniaSeguro] [varchar](40) NOT NULL,
+	[EstadoRegistro] [char](1) NOT NULL,
+	[CodigoUsuarioCreador] [varchar](15) NOT NULL,
+	[FechaCreacion] [datetime] NOT NULL,
+	[CodigoUsuarioModificador] [varchar](15) NULL,
+	[FechaModificacion] [datetime] NULL,
+	[CodigoUsuarioCreadorSistema] [varchar](15) NOT NULL,
+	[FechaCreacionSistema] [datetime] NOT NULL,
+	[CodigoUsuarioUpdateSistema] [varchar](15) NULL,
+	[FechaUpdateSistema] [datetime] NULL
+) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Mae_CompaniaSeguro] ADD  CONSTRAINT [PK_Mae_CompaniaSeguro] PRIMARY KEY CLUSTERED 
+(
+	[IdCompaniaSeguro] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Mae_CompaniaSeguro]  WITH CHECK ADD  CONSTRAINT [FK_Mae_CompaniaSeguro_Mae_PersonaJuridica] FOREIGN KEY([IdPersonaJuridica])
+REFERENCES [persona].[Mae_PersonaJuridica] ([IdPersona])
+GO
+ALTER TABLE [persona].[Mae_CompaniaSeguro] CHECK CONSTRAINT [FK_Mae_CompaniaSeguro_Mae_PersonaJuridica]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Mae_Persona](
+	[IdPersona] [uniqueidentifier] NOT NULL,
+	[TipoPersona] [char](1) NOT NULL,
+	[NombreCompletoPersona] [nvarchar](200) NOT NULL,
+	[NombreAbreviadoPersona] [nvarchar](100) NOT NULL,
+	[CodigoTipoDocumento] [varchar](20) NOT NULL,
+	[NumeroDocumento] [varchar](20) NOT NULL,
+	[DescripcionPaginaWeb] [nvarchar](100) NULL,
+	[CodigoTipoTrabajador] [char](1) NULL,
+	[EstadoRegistro] [char](1) NOT NULL,
+	[CodigoUsuarioCreador] [varchar](15) NOT NULL,
+	[FechaCreacion] [datetime] NOT NULL,
+	[CodigoUsuarioModificador] [varchar](15) NULL,
+	[FechaModificacion] [datetime] NULL,
+	[CodigoUsuarioCreadorSistema] [varchar](15) NOT NULL,
+	[FechaCreacionSistema] [datetime] NOT NULL,
+	[CodigoUsuarioUpdateSistema] [varchar](15) NULL,
+	[FechaUpdateSistema] [datetime] NULL
+) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Mae_Persona] ADD  CONSTRAINT [PK_Mae_Persona] PRIMARY KEY CLUSTERED 
+(
+	[IdPersona] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+SET ANSI_PADDING ON
+GO
+CREATE NONCLUSTERED INDEX [IX_Mae_Persona_01] ON [persona].[Mae_Persona]
+(
+	[NumeroDocumento] ASC,
+	[CodigoTipoDocumento] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, DROP_EXISTING = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+SET ANSI_PADDING ON
+GO
+CREATE NONCLUSTERED INDEX [IX_Mae_Persona_02] ON [persona].[Mae_Persona]
+(
+	[NombreCompletoPersona] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, DROP_EXISTING = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Mae_PersonaJuridica](
+	[IdPersona] [uniqueidentifier] NOT NULL,
+	[FechaAniversario] [date] NULL,
+	[NombreRazonSocial] [varchar](70) NOT NULL,
+	[NombreRazonSocialAbreviada] [varchar](50) NULL,
+	[CodigoGrupoEconomico] [varchar](6) NULL,
+	[EstadoRegistro] [char](1) NOT NULL,
+	[CodigoUsuarioCreador] [varchar](15) NOT NULL,
+	[FechaCreacion] [datetime] NOT NULL,
+	[CodigoUsuarioModificador] [varchar](15) NULL,
+	[FechaModificacion] [datetime] NULL,
+	[CodigoUsuarioCreadorSistema] [varchar](15) NOT NULL,
+	[FechaCreacionSistema] [datetime] NOT NULL,
+	[CodigoUsuarioUpdateSistema] [varchar](15) NULL,
+	[FechaUpdateSistema] [datetime] NULL
+) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Mae_PersonaJuridica] ADD  CONSTRAINT [PK_Mae_PersonaJuridica] PRIMARY KEY CLUSTERED 
+(
+	[IdPersona] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+SET ANSI_PADDING ON
+GO
+CREATE NONCLUSTERED INDEX [IX_Mae_PersonaJuridica_01] ON [persona].[Mae_PersonaJuridica]
+(
+	[NombreRazonSocial] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, DROP_EXISTING = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Mae_PersonaJuridica]  WITH CHECK ADD  CONSTRAINT [FK_Mae_PersonaJuridica_Mae_Persona] FOREIGN KEY([IdPersona])
+REFERENCES [persona].[Mae_Persona] ([IdPersona])
+GO
+ALTER TABLE [persona].[Mae_PersonaJuridica] CHECK CONSTRAINT [FK_Mae_PersonaJuridica_Mae_Persona]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Mae_Proveedor](
+	[IdProveedor] [uniqueidentifier] NOT NULL,
+	[IdPersona] [uniqueidentifier] NOT NULL,
+	[IdTipoProveedor] [uniqueidentifier] NOT NULL,
+	[CodigoProveedor] [varchar](10) NOT NULL,
+	[TipoProveedor] [numeric](2, 0) NOT NULL,
+	[IndicadorCertificacion] [varchar](1) NULL,
+	[IndicadorRedSelecta] [varchar](1) NOT NULL,
+	[EstadoRegistro] [char](1) NOT NULL,
+	[CodigoUsuarioCreador] [varchar](15) NOT NULL,
+	[FechaCreacion] [datetime] NOT NULL,
+	[CodigoUsuarioModificador] [varchar](15) NULL,
+	[FechaModificacion] [datetime] NULL,
+	[CodigoUsuarioCreadorSistema] [varchar](15) NOT NULL,
+	[FechaCreacionSistema] [datetime] NOT NULL,
+	[CodigoUsuarioUpdateSistema] [varchar](15) NULL,
+	[FechaUpdateSistema] [datetime] NULL
+) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Mae_Proveedor] ADD  CONSTRAINT [PK_Mae_Proveedor] PRIMARY KEY CLUSTERED 
+(
+	[IdProveedor] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+SET ANSI_PADDING ON
+GO
+CREATE NONCLUSTERED INDEX [IX_Mae_Proveedor_01] ON [persona].[Mae_Proveedor]
+(
+	[CodigoProveedor] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, DROP_EXISTING = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+CREATE NONCLUSTERED INDEX [IX_Mae_Proveedor_02] ON [persona].[Mae_Proveedor]
+(
+	[IdPersona] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, DROP_EXISTING = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Mae_Proveedor]  WITH CHECK ADD  CONSTRAINT [FK_Mae_Proveedor_Mae_Persona] FOREIGN KEY([IdPersona])
+REFERENCES [persona].[Mae_Persona] ([IdPersona])
+GO
+ALTER TABLE [persona].[Mae_Proveedor] CHECK CONSTRAINT [FK_Mae_Proveedor_Mae_Persona]
+GO
+ALTER TABLE [persona].[Mae_Proveedor]  WITH CHECK ADD  CONSTRAINT [FK_Mae_Proveedor_Tip_TipoProveedor] FOREIGN KEY([IdTipoProveedor])
+REFERENCES [persona].[Tip_TipoProveedor] ([IdTipoProveedor])
+GO
+ALTER TABLE [persona].[Mae_Proveedor] CHECK CONSTRAINT [FK_Mae_Proveedor_Tip_TipoProveedor]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Mae_Sucursal](
+	[IdSucursal] [uniqueidentifier] NOT NULL,
+	[IdProveedor] [uniqueidentifier] NOT NULL,
+	[CodigoProveedor] [varchar](10) NOT NULL,
+	[NumeroSucursalProveedor] [varchar](4) NOT NULL,
+	[DescripcionSucursal] [varchar](150) NOT NULL,
+	[IndicadorPrincipalSucursal] [varchar](1) NOT NULL,
+	[CategoriaSucursal] [char](1) NULL,
+	[CodigoSucursalSeps] [varchar](10) NULL,
+	[RegistroSeps] [varchar](10) NULL,
+	[IndicadorEPS] [varchar](1) NULL,
+	[CodigoSeps] [varchar](20) NULL,
+	[CodigoClinicaEps] [varchar](20) NULL,
+	[IndicadorRedSelecta] [char](1) NULL,
+	[IndicadorExoneracionIgv] [varchar](1) NULL,
+	[IndicadorDetraccion] [varchar](1) NULL,
+	[TipoInstitucion] [varchar](20) NULL,
+	[EstadoRegistro] [char](1) NOT NULL,
+	[CodigoUsuarioCreador] [varchar](15) NOT NULL,
+	[FechaCreacion] [datetime] NOT NULL,
+	[CodigoUsuarioModificador] [varchar](15) NULL,
+	[FechaModificacion] [datetime] NULL,
+	[CodigoUsuarioCreadorSistema] [varchar](15) NOT NULL,
+	[FechaCreacionSistema] [datetime] NOT NULL,
+	[CodigoUsuarioUpdateSistema] [varchar](15) NULL,
+	[FechaUpdateSistema] [datetime] NULL
+) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Mae_Sucursal] ADD  CONSTRAINT [PK_Mae_Sucursal] PRIMARY KEY CLUSTERED 
+(
+	[IdSucursal] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+SET ANSI_PADDING ON
+GO
+CREATE NONCLUSTERED INDEX [IX_Mae_Sucursal_01] ON [persona].[Mae_Sucursal]
+(
+	[CodigoProveedor] ASC,
+	[NumeroSucursalProveedor] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, DROP_EXISTING = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+CREATE NONCLUSTERED INDEX [IX_Mae_Sucursal_02] ON [persona].[Mae_Sucursal]
+(
+	[IdProveedor] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, DROP_EXISTING = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Mae_Sucursal]  WITH CHECK ADD  CONSTRAINT [FK_Mae_Sucursal_Mae_Proveedor] FOREIGN KEY([IdProveedor])
+REFERENCES [persona].[Mae_Proveedor] ([IdProveedor])
+GO
+ALTER TABLE [persona].[Mae_Sucursal] CHECK CONSTRAINT [FK_Mae_Sucursal_Mae_Proveedor]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Mae_SucursalCompaniaSeguro](
+	[IdSucursalCompaniaSeguro] [uniqueidentifier] NOT NULL,
+	[IdSucursal] [uniqueidentifier] NOT NULL,
+	[IdCompaniaSeguro] [uniqueidentifier] NOT NULL,
+	[CodigoProveedor] [varchar](10) NOT NULL,
+	[NumeroSucursalProveedor] [varchar](10) NOT NULL,
+	[EstadoRegistro] [char](1) NOT NULL,
+	[CodigoUsuarioCreador] [varchar](15) NOT NULL,
+	[FechaCreacion] [datetime] NOT NULL,
+	[CodigoUsuarioModificador] [varchar](15) NULL,
+	[FechaModificacion] [datetime] NULL,
+	[CodigoUsuarioCreadorSistema] [varchar](15) NOT NULL,
+	[FechaCreacionSistema] [datetime] NOT NULL,
+	[CodigoUsuarioUpdateSistema] [varchar](15) NULL,
+	[FechaUpdateSistema] [datetime] NULL
+) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Mae_SucursalCompaniaSeguro] ADD  CONSTRAINT [PK_Mae_SucursalCompaniaSeguro] PRIMARY KEY CLUSTERED 
+(
+	[IdSucursalCompaniaSeguro] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+CREATE NONCLUSTERED INDEX [IX_Mae_SucursalCompaniaSeguro_01] ON [persona].[Mae_SucursalCompaniaSeguro]
+(
+	[IdSucursal] ASC,
+	[IdCompaniaSeguro] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, DROP_EXISTING = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Mae_SucursalCompaniaSeguro]  WITH CHECK ADD  CONSTRAINT [FK_Mae_SucursalCompaniaSeguro_Mae_CompaniaSeguro] FOREIGN KEY([IdCompaniaSeguro])
+REFERENCES [persona].[Mae_CompaniaSeguro] ([IdCompaniaSeguro])
+GO
+ALTER TABLE [persona].[Mae_SucursalCompaniaSeguro] CHECK CONSTRAINT [FK_Mae_SucursalCompaniaSeguro_Mae_CompaniaSeguro]
+GO
+ALTER TABLE [persona].[Mae_SucursalCompaniaSeguro]  WITH CHECK ADD  CONSTRAINT [FK_Mae_SucursalCompaniaSeguro_Mae_Sucursal] FOREIGN KEY([IdSucursal])
+REFERENCES [persona].[Mae_Sucursal] ([IdSucursal])
+GO
+ALTER TABLE [persona].[Mae_SucursalCompaniaSeguro] CHECK CONSTRAINT [FK_Mae_SucursalCompaniaSeguro_Mae_Sucursal]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Tbt_PersonaCompaniaSeguro](
+	[IdPersonaCompaniaSeguro] [uniqueidentifier] NOT NULL,
+	[IdPersona] [uniqueidentifier] NOT NULL,
+	[IdCompaniaSeguro] [uniqueidentifier] NOT NULL,
+	[EstadoRegistro] [char](1) NOT NULL,
+	[CodigoUsuarioCreador] [varchar](15) NOT NULL,
+	[FechaCreacion] [datetime] NOT NULL,
+	[CodigoUsuarioModificador] [varchar](15) NULL,
+	[FechaModificacion] [datetime] NULL,
+	[CodigoUsuarioCreadorSistema] [varchar](15) NOT NULL,
+	[FechaCreacionSistema] [datetime] NOT NULL,
+	[CodigoUsuarioUpdateSistema] [varchar](15) NULL,
+	[FechaUpdateSistema] [datetime] NULL
+) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Tbt_PersonaCompaniaSeguro] ADD  CONSTRAINT [PK_Tbt_PersonaCompaniaSeguro] PRIMARY KEY CLUSTERED 
+(
+	[IdPersonaCompaniaSeguro] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+CREATE NONCLUSTERED INDEX [IX_Tbt_PersonaCompaniaSeguro_01] ON [persona].[Tbt_PersonaCompaniaSeguro]
+(
+	[IdPersona] ASC,
+	[IdCompaniaSeguro] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, DROP_EXISTING = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Tbt_PersonaCompaniaSeguro]  WITH CHECK ADD  CONSTRAINT [FK_Tbt_PersonaCompaniaSeguro_Mae_CompaniaSeguro] FOREIGN KEY([IdCompaniaSeguro])
+REFERENCES [persona].[Mae_CompaniaSeguro] ([IdCompaniaSeguro])
+GO
+ALTER TABLE [persona].[Tbt_PersonaCompaniaSeguro] CHECK CONSTRAINT [FK_Tbt_PersonaCompaniaSeguro_Mae_CompaniaSeguro]
+GO
+ALTER TABLE [persona].[Tbt_PersonaCompaniaSeguro]  WITH CHECK ADD  CONSTRAINT [FK_Tbt_PersonaCompaniaSeguro_Mae_Persona] FOREIGN KEY([IdPersona])
+REFERENCES [persona].[Mae_Persona] ([IdPersona])
+GO
+ALTER TABLE [persona].[Tbt_PersonaCompaniaSeguro] CHECK CONSTRAINT [FK_Tbt_PersonaCompaniaSeguro_Mae_Persona]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Tbt_PersonaRol](
+	[IdPersonaRol] [uniqueidentifier] NOT NULL,
+	[IdPersona] [uniqueidentifier] NOT NULL,
+	[IdTipoRol] [varchar](8) NOT NULL,
+	[EstadoRegistro] [char](1) NOT NULL,
+	[CodigoUsuarioCreador] [varchar](15) NOT NULL,
+	[FechaCreacion] [datetime] NOT NULL,
+	[CodigoUsuarioModificador] [varchar](15) NULL,
+	[FechaModificacion] [datetime] NULL,
+	[CodigoUsuarioCreadorSistema] [varchar](15) NOT NULL,
+	[FechaCreacionSistema] [datetime] NOT NULL,
+	[CodigoUsuarioUpdateSistema] [varchar](15) NULL,
+	[FechaUpdateSistema] [datetime] NULL
+) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Tbt_PersonaRol] ADD  CONSTRAINT [PK_Tbt_PersonaRol] PRIMARY KEY CLUSTERED 
+(
+	[IdPersonaRol] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+SET ANSI_PADDING ON
+GO
+CREATE NONCLUSTERED INDEX [IX_Tbt_PersonaRol_01] ON [persona].[Tbt_PersonaRol]
+(
+	[IdPersona] ASC,
+	[IdTipoRol] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, DROP_EXISTING = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+ALTER TABLE [persona].[Tbt_PersonaRol]  WITH CHECK ADD  CONSTRAINT [FK_Tbt_PersonaRol_Mae_Persona] FOREIGN KEY([IdPersona])
+REFERENCES [persona].[Mae_Persona] ([IdPersona])
+GO
+ALTER TABLE [persona].[Tbt_PersonaRol] CHECK CONSTRAINT [FK_Tbt_PersonaRol_Mae_Persona]
+GO
+ALTER TABLE [persona].[Tbt_PersonaRol]  WITH CHECK ADD  CONSTRAINT [FK_Tbt_PersonaRol_Tip_Rol] FOREIGN KEY([IdTipoRol])
+REFERENCES [persona].[Tip_Rol] ([IdTipoRol])
+GO
+ALTER TABLE [persona].[Tbt_PersonaRol] CHECK CONSTRAINT [FK_Tbt_PersonaRol_Tip_Rol]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [persona].[Tip_Rol](
+	[IdTipoRol] [varchar](8) NOT NULL,
+	[CodigoLval] [varchar](15) NULL,
+	[DescripcionRol] [varchar](50) NOT NULL,
+	[EstadoRegistro] [char](1) NOT NULL,
+	[CodigoUsuarioCreador] [varchar](15) NOT NULL,
+	[FechaCreacion] [datetime] NOT NULL,
+	[CodigoUsuarioModificador] [varchar](15) NULL,
+	[FechaModificacion] [datetime] NULL,
+	[CodigoUsuarioCreadorSistema] [varchar](15) NOT NULL,
+	[FechaCreacionSistema] [datetime] NOT NULL,
+	[CodigoUsuarioUpdateSistema] [varchar](15) NULL,
+	[FechaUpdateSistema] [datetime] NULL
+) ON [PRIMARY]
+GO
+SET ANSI_PADDING ON
+GO
+ALTER TABLE [persona].[Tip_Rol] ADD  CONSTRAINT [PK_Tip_Rol] PRIMARY KEY CLUSTERED 
+(
+	[IdTipoRol] ASC
+)WITH (STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
