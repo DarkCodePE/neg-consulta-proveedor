@@ -1638,3 +1638,6 @@ ORDER BY t.name, i.name, ic.key_ordinal;
 PRINT 'Índices compatibles con Azure SQL Database creados exitosamente.';
 PRINT 'RECOMENDACIÓN: Para máximo rendimiento, considera cambiar los tipos de datos NVARCHAR(MAX) a tamaños específicos.';
 PRINT 'Esto permitirá crear índices más eficientes en las columnas clave.';
+
+db-srv-eu1-datos-desa-01.database.windows.net
+db-sql-eu1-datos-desa01
