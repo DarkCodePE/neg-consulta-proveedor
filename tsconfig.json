@@ -502,3 +502,31 @@ IMPORTANTE PARA EL PIPELINE:
 - Todos los IDs principales deben ser proporcionados
 - Los campos de auditoría mantienen sus defaults automáticos
 */
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [convenio].[Mae_Beneficio](
+	[idBeneficio] [nvarchar](max) NULL,
+	[idGrupoBeneficio] [nvarchar](max) NULL,
+	[idTipoCobertura] [nvarchar](max) NULL,
+	[idSubtipoCobertura] [nvarchar](max) NULL,
+	[codBeneficio] [nvarchar](max) NULL,
+	[descripcion] [nvarchar](max) NULL,
+	[desResumida] [nvarchar](max) NULL,
+	[codGrupoBeneficio] [nvarchar](max) NULL,
+	[codCobertura] [nvarchar](max) NULL,
+	[subtipoCobert] [nvarchar](max) NULL,
+	[estRegistro] [nvarchar](max) NULL,
+	[codSistema] [nvarchar](max) NULL,
+	[compania] [nvarchar](max) NULL,
+	[codUsuarioCreadorSistema] [nvarchar](max) NULL,
+	[fecCreacionSistema] [datetime] NULL,
+	[codUsuarioUpdateSistema] [nvarchar](max) NULL,
+	[fecUpdateSistema] [datetime] NULL,
+	[codUsuarioCreador] [nvarchar](max) NULL,
+	[fecCreacion] [datetime] NULL,
+	[codUsuarioUpdate] [nvarchar](max) NULL,
+	[fecUpdate] [datetime] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
