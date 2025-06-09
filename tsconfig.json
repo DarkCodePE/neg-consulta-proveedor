@@ -1,1643 +1,504 @@
--- ===============================================
--- SCRIPTS DE OPTIMIZACIÓN PARA AZURE SQL DATABASE
--- Siguiendo estándares de Pacífico Salud
--- ===============================================
+-- =====================================================================
+-- ESQUEMA DE BASE DE DATOS - INTEGRACIÓN CON MICROSERVICIOS
+-- Sistema Contratos Proveedores EPS
+-- 
+-- ARQUITECTURA:
+-- - Mae_Proveedor: Datos desde microservicio "consulta-proveedor"
+-- - Mae_Beneficio: Datos desde microservicio "consulta-convenios" 
+-- - Tablas core: Almacenadas localmente en este microservicio
+-- - IDs: Generados externamente desde pipeline (ULID)
+-- =====================================================================
 
--- ✅ 1. ÍNDICES PRINCIPALES PARA LA CONSULTA DE DIAGNÓSTICOS-BENEFICIOS
--- Según nomenclatura EPS-DES-CMP-EST-BaseDeDatosAzureSQL.pdf
+-- Configuración inicial
+SET NOCOUNT ON;
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
 
--- Índice principal para DiagnosticoBeneficio (tabla de relación)
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_01
-ON convenio.DiagnosticoBeneficio(idBeneficio, idDiagnostico, estRegistro)
-INCLUDE (fecCreacionSistema);
+PRINT '======================================================================';
+PRINT 'CREANDO ESQUEMA - CONTRATOS PROVEEDORES CON MICROSERVICIOS';
+PRINT 'Arquitectura: Tablas core locales + Referencias a microservicios';
+PRINT 'IDs: Generados externamente desde pipeline (ULID)';
+PRINT 'Fecha: ' + CONVERT(VARCHAR, GETDATE(), 120);
+PRINT '======================================================================';
 
--- Índice adicional para DiagnosticoBeneficio por diagnóstico
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_02
-ON convenio.DiagnosticoBeneficio(idDiagnostico, estRegistro)
-INCLUDE (idBeneficio, fecCreacionSistema);
+-- =====================================================================
+-- TABLA TIPO CONTRATO (Local - Core del negocio)
+-- IDs generados desde pipeline
+-- =====================================================================
 
--- Índice principal para Diagnostico
-CREATE NONCLUSTERED INDEX IX_Diagnostico_01
-ON convenio.Diagnostico(estRegistro, codSistema)
-INCLUDE (idDiagnostico, codDiagnostico, descripcionDiagnostico, desTipDiagnostico,
-codGrupoDiagnostico, fecCreacionSistema, codDiagnosticoCie10);
-
--- Índice por código de diagnóstico
-CREATE NONCLUSTERED INDEX IX_Diagnostico_02
-ON convenio.Diagnostico(codDiagnostico, estRegistro)
-INCLUDE (idDiagnostico, descripcionDiagnostico, codSistema);
-
--- Índice principal para Mae_Beneficio
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_01
-ON convenio.Mae_Beneficio(estRegistro, compania, codSistema)
-INCLUDE (idBeneficio, codBeneficio, descripcion, desResumida, codGrupoBeneficio);
-
--- Índice por código de beneficio
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_02
-ON convenio.Mae_Beneficio(codBeneficio, estRegistro)
-INCLUDE (idBeneficio, descripcion, desResumida, compania);
-
--- ✅ 2. VERIFICAR ESTADÍSTICAS Y FRAGMENTACIÓN
--- Actualizar estadísticas para mejorar el plan de ejecución
-UPDATE STATISTICS convenio.DiagnosticoBeneficio WITH FULLSCAN;
-UPDATE STATISTICS convenio.Diagnostico WITH FULLSCAN;
-UPDATE STATISTICS convenio.Mae_Beneficio WITH FULLSCAN;
-
--- ✅ 3. VERIFICAR FRAGMENTACIÓN DE ÍNDICES
-SELECT
-OBJECT_NAME(ips.object_id) AS TableName,
-i.name AS IndexName,
-ips.index_type_desc,
-ips.avg_fragmentation_in_percent,
-ips.page_count,
-CASE
-WHEN ips.avg_fragmentation_in_percent > 30 THEN 'REBUILD RECOMENDADO'
-WHEN ips.avg_fragmentation_in_percent > 10 THEN 'REORGANIZE RECOMENDADO'
-ELSE 'OK'
-END AS Recomendacion
-FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'DETAILED') ips
-INNER JOIN sys.indexes i ON ips.object_id = i.object_id AND ips.index_id = i.index_id
-WHERE ips.avg_fragmentation_in_percent > 5
-AND ips.page_count > 1000
-AND OBJECT_NAME(ips.object_id) IN ('DiagnosticoBeneficio', 'Diagnostico', 'Mae_Beneficio')
-ORDER BY ips.avg_fragmentation_in_percent DESC;
-
--- ✅ 4. MANTENIMIENTO DE ÍNDICES (Ejecutar según necesidad)
--- REORGANIZE para fragmentación moderada (10-30%)
-ALTER INDEX IX_DiagnosticoBeneficio_01 ON convenio.DiagnosticoBeneficio REORGANIZE;
-ALTER INDEX IX_Diagnostico_01 ON convenio.Diagnostico REORGANIZE;
-ALTER INDEX IX_Mae_Beneficio_01 ON convenio.Mae_Beneficio REORGANIZE;
-
--- REBUILD para fragmentación alta (>30%) - USAR CON CUIDADO EN PRODUCCIÓN
--- ALTER INDEX IX_DiagnosticoBeneficio_01 ON convenio.DiagnosticoBeneficio REBUILD WITH (ONLINE = ON);
-
--- ✅ 5. VERIFICAR PLANES DE EJECUCIÓN PROBLEMÁTICOS
--- Consultar planes de ejecución costosos
-SELECT TOP 10
-qs.execution_count,
-qs.total_elapsed_time / 1000000.0 AS total_elapsed_time_seconds,
-qs.total_worker_time / 1000000.0 AS total_cpu_time_seconds,
-qs.total_logical_reads,
-qs.total_physical_reads,
-SUBSTRING(qt.text, (qs.statement_start_offset/2)+1,
-((CASE qs.statement_end_offset
-WHEN -1 THEN DATALENGTH(qt.text)
-ELSE qs.statement_end_offset
-END - qs.statement_start_offset)/2)+1) AS statement_text
-FROM sys.dm_exec_query_stats qs
-CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) qt
-WHERE qt.text LIKE '%DiagnosticoBeneficio%'
-OR qt.text LIKE '%convenio.Diagnostico%'
-OR qt.text LIKE '%Mae_Beneficio%'
-ORDER BY qs.total_elapsed_time DESC;
-
--- ✅ 6. VERIFICAR ÍNDICES FALTANTES
-SELECT
-migs.avg_total_user_cost * (migs.avg_user_impact / 100.0) * (migs.user_seeks + migs.user_scans) AS improvement_measure,
-'CREATE INDEX [missing_index_' + CONVERT(varchar, mig.index_group_handle) + '_' + CONVERT(varchar, mid.index_handle) + ']'
-+ ' ON ' + mid.statement + ' (' + ISNULL(mid.equality_columns,'')
-+ CASE WHEN mid.equality_columns IS NOT NULL AND mid.inequality_columns IS NOT NULL THEN ',' ELSE '' END
-+ ISNULL(mid.inequality_columns, '') + ')'
-+ ISNULL(' INCLUDE (' + mid.included_columns + ')', '') AS create_index_statement,
-migs.user_seeks,
-migs.user_scans,
-migs.avg_total_user_cost,
-migs.avg_user_impact
-FROM sys.dm_db_missing_index_groups mig
-INNER JOIN sys.dm_db_missing_index_group_stats migs ON migs.group_handle = mig.index_group_handle
-INNER JOIN sys.dm_db_missing_index_details mid ON mig.index_handle = mid.index_handle
-WHERE migs.avg_total_user_cost * (migs.avg_user_impact / 100.0) * (migs.user_seeks + migs.user_scans) > 10
-AND (mid.statement LIKE '%DiagnosticoBeneficio%'
-OR mid.statement LIKE '%Diagnostico%'
-OR mid.statement LIKE '%Mae_Beneficio%')
-ORDER BY improvement_measure DESC;
-
--- ✅ 7. CONFIGURACIÓN DE BASE DE DATOS OPTIMIZADA
--- Verificar configuración actual
-SELECT
-name,
-value,
-value_in_use,
-description
-FROM sys.configurations
-WHERE name IN (
-'max degree of parallelism',
-'cost threshold for parallelism',
-'optimize for ad hoc workloads'
+CREATE TABLE Tip_TipoContrato (
+    tipoContratoId              VARCHAR(26) NOT NULL, -- ULID desde pipeline
+    tipoContrato                INT NOT NULL,
+    descripContrato             VARCHAR(255) NOT NULL,
+    descripcionResumidaContrato VARCHAR(100) NULL,
+    codContratoSEPS            VARCHAR(10) NULL,
+    DescripMecanismoPago       VARCHAR(255) NULL,
+    codSUNASA                  VARCHAR(5) NULL,
+    estRegistro                CHAR(1) NOT NULL DEFAULT 'V',
+    codSistema                 CHAR(5) NOT NULL,
+    codCompania                CHAR(6) NOT NULL,
+    fechaEstado                CHAR(15) NULL,
+    fecCreacionsSistema        DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdateSistema    CHAR(15) NULL,
+    fecUpdateSistema           DATETIME2 NULL,
+    codUsuarioCreador          CHAR(15) NOT NULL,
+    fecCreacion                DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdate           CHAR(15) NULL,
+    
+    CONSTRAINT PK_Tip_TipoContrato PRIMARY KEY (tipoContratoId),
+    CONSTRAINT UK_Tip_TipoContrato_Codigo UNIQUE (tipoContrato, codSistema, codCompania),
+    CONSTRAINT CK_Tip_TipoContrato_EstRegistro CHECK (estRegistro IN ('V', 'H', 'A')),
+    CONSTRAINT CK_Tip_TipoContrato_Sistema CHECK (codSistema IN ('ACSEL', 'INSIS', 'NVS')),
+    CONSTRAINT CK_Tip_TipoContrato_Compania CHECK (codCompania IN ('20002', '40004'))
 );
 
--- ✅ 8. MONITOREO DE PERFORMANCE EN TIEMPO REAL
--- Consultas activas que están tardando más de 10 segundos
-SELECT
-r.session_id,
-r.start_time,
-r.status,
-r.command,
-r.total_elapsed_time / 1000.0 AS elapsed_seconds,
-r.cpu_time / 1000.0 AS cpu_seconds,
-r.logical_reads,
-r.reads,
-r.writes,
-t.text AS query_text,
-r.blocking_session_id,
-r.wait_type,
-r.wait_time / 1000.0 AS wait_seconds
-FROM sys.dm_exec_requests r
-CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t
-WHERE r.total_elapsed_time > 10000 -- Más de 10 segundos
-AND r.session_id != @@SPID
-ORDER BY r.total_elapsed_time DESC;
+-- =====================================================================
+-- TABLA DE REFERENCIA DE PROVEEDORES 
+-- (Cache/Referencia - Datos desde microservicio consulta-proveedor)
+-- =====================================================================
 
--- ✅ 9. LIMPIEZA DE CACHE (Solo para troubleshooting en desarrollo)
--- ⚠️ NO EJECUTAR EN PRODUCCIÓN
--- DBCC FREEPROCCACHE;
--- DBCC DROPCLEANBUFFERS;
+CREATE TABLE Mae_ProveedorRef (
+    ProveedorRefId              VARCHAR(26) NOT NULL, -- ULID desde pipeline
+    CodigoProveedor             INT NOT NULL,
+    -- Campos mínimos para referencias y cache
+    RazonSocial                 VARCHAR(250) NULL, -- Cache opcional
+    TipoProveedor               VARCHAR(50) NULL,  -- Cache opcional
+    -- Metadatos de sincronización con microservicio
+    ultimaActualizacion         DATETIME2 NOT NULL DEFAULT GETDATE(),
+    estadoSincronizacion        CHAR(1) NOT NULL DEFAULT 'V', -- V=Vigente, P=Pendiente, E=Error
+    intentosSync                INT NOT NULL DEFAULT 0,
+    errorSync                   VARCHAR(500) NULL,
+    -- Campos de auditoría estándar
+    sistema                     CHAR(5) NOT NULL,
+    Compania                    CHAR(5) NOT NULL,
+    estRegistro                 CHAR(1) NOT NULL DEFAULT 'V',
+    codUsuarioCreadorSistema    CHAR(15) NULL,
+    fecCreacionsSistema         DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdateSistema     CHAR(15) NULL,
+    fecUpdateSistema            DATETIME2 NULL,
+    codUsuarioCreador           CHAR(15) NOT NULL,
+    fecCreacion                 DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdate            CHAR(15) NULL,
+    
+    CONSTRAINT PK_Mae_ProveedorRef PRIMARY KEY (ProveedorRefId),
+    CONSTRAINT UK_Mae_ProveedorRef_Codigo UNIQUE (CodigoProveedor, sistema, Compania),
+    CONSTRAINT CK_Mae_ProveedorRef_EstRegistro CHECK (estRegistro IN ('V', 'H', 'A')),
+    CONSTRAINT CK_Mae_ProveedorRef_Sistema CHECK (sistema IN ('ACSEL', 'INSIS', 'NVS')),
+    CONSTRAINT CK_Mae_ProveedorRef_Compania CHECK (Compania IN ('20002', '40004')),
+    CONSTRAINT CK_Mae_ProveedorRef_EstadoSync CHECK (estadoSincronizacion IN ('V', 'P', 'E'))
+);
 
--- ✅ 10. VERIFICAR BLOQUEOS
-SELECT
-blocking.session_id AS blocking_session_id,
-blocked.session_id AS blocked_session_id,
-blocking_text.text AS blocking_text,
-blocked_text.text AS blocked_text,
-blocked.wait_type,
-blocked.wait_time / 1000.0 AS wait_time_seconds
-FROM sys.dm_exec_requests blocked
-INNER JOIN sys.dm_exec_requests blocking ON blocked.blocking_session_id = blocking.session_id
-CROSS APPLY sys.dm_exec_sql_text(blocking.sql_handle) blocking_text
-CROSS APPLY sys.dm_exec_sql_text(blocked.sql_handle) blocked_text
-WHERE blocked.blocking_session_id != 0;
+-- =====================================================================
+-- TABLA DE REFERENCIA DE BENEFICIOS
+-- (Cache/Referencia - Datos desde microservicio consulta-convenios)
+-- =====================================================================
 
+CREATE TABLE Mae_BeneficioRef (
+    BeneficioRefId              VARCHAR(26) NOT NULL, -- ULID desde pipeline
+    CodigoBeneficio             INT NOT NULL,
+    -- Campos mínimos para referencias y cache
+    NombreBeneficio             VARCHAR(250) NULL, -- Cache opcional
+    CategoriaBeneficio          VARCHAR(100) NULL, -- Cache opcional
+    -- Metadatos de sincronización con microservicio
+    ultimaActualizacion         DATETIME2 NOT NULL DEFAULT GETDATE(),
+    estadoSincronizacion        CHAR(1) NOT NULL DEFAULT 'V', -- V=Vigente, P=Pendiente, E=Error
+    intentosSync                INT NOT NULL DEFAULT 0,
+    errorSync                   VARCHAR(500) NULL,
+    -- Campos de auditoría estándar
+    sistema                     CHAR(5) NOT NULL,
+    Compania                    CHAR(5) NOT NULL,
+    estRegistro                 CHAR(1) NOT NULL DEFAULT 'V',
+    codUsuarioCreadorSistema    CHAR(15) NULL,
+    fecCreacionsSistema         DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdateSistema     CHAR(15) NULL,
+    fecUpdateSistema            DATETIME2 NULL,
+    codUsuarioCreador           CHAR(15) NOT NULL,
+    fecCreacion                 DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdate            CHAR(15) NULL,
+    
+    CONSTRAINT PK_Mae_BeneficioRef PRIMARY KEY (BeneficioRefId),
+    CONSTRAINT UK_Mae_BeneficioRef_Codigo UNIQUE (CodigoBeneficio, sistema, Compania),
+    CONSTRAINT CK_Mae_BeneficioRef_EstRegistro CHECK (estRegistro IN ('V', 'H', 'A')),
+    CONSTRAINT CK_Mae_BeneficioRef_Sistema CHECK (sistema IN ('ACSEL', 'INSIS', 'NVS')),
+    CONSTRAINT CK_Mae_BeneficioRef_Compania CHECK (Compania IN ('20002', '40004')),
+    CONSTRAINT CK_Mae_BeneficioRef_EstadoSync CHECK (estadoSincronizacion IN ('V', 'P', 'E'))
+);
 
+-- =====================================================================
+-- TABLA DE REFERENCIA DE SUCURSALES
+-- (Información mínima - Detalles desde microservicio consulta-proveedor)
+-- =====================================================================
 
+CREATE TABLE Mae_ProveedorSucursalRef (
+    ProveedorSucursalRefId      VARCHAR(26) NOT NULL, -- ULID desde pipeline
+    CodigoProveedor             INT NOT NULL,
+    NumeroSucursal              INT NOT NULL,
+    -- Campos esenciales para operaciones locales
+    CodigoIpress                VARCHAR(20) NULL,
+    RegistroSeps                VARCHAR(10) NULL,
+    -- Cache opcional de datos básicos
+    Descripcion                 VARCHAR(250) NULL,
+    -- Metadatos de sincronización
+    ultimaActualizacion         DATETIME2 NOT NULL DEFAULT GETDATE(),
+    estadoSincronizacion        CHAR(1) NOT NULL DEFAULT 'V',
+    -- Campos de auditoría estándar
+    sistema                     CHAR(5) NOT NULL,
+    Compania                    CHAR(5) NOT NULL,
+    estRegistro                 CHAR(1) NOT NULL DEFAULT 'V',
+    codUsuarioCreadorSistema    CHAR(15) NULL,
+    fecCreacionsSistema         DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdateSistema     CHAR(15) NULL,
+    fecUpdateSistema            DATETIME2 NULL,
+    codUsuarioCreador           CHAR(15) NOT NULL,
+    fecCreacion                 DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdate            CHAR(15) NULL,
+    
+    CONSTRAINT PK_Mae_ProveedorSucursalRef PRIMARY KEY (ProveedorSucursalRefId),
+    CONSTRAINT UK_Mae_ProveedorSucursalRef UNIQUE (CodigoProveedor, NumeroSucursal, sistema, Compania),
+    CONSTRAINT CK_Mae_ProveedorSucursalRef_EstRegistro CHECK (estRegistro IN ('V', 'H', 'A')),
+    CONSTRAINT CK_Mae_ProveedorSucursalRef_Sistema CHECK (sistema IN ('ACSEL', 'INSIS', 'NVS')),
+    CONSTRAINT CK_Mae_ProveedorSucursalRef_Compania CHECK (Compania IN ('20002', '40004'))
+);
 
+-- =====================================================================
+-- TABLAS CORE DEL NEGOCIO (Almacenadas localmente)
+-- IDs generados desde pipeline
+-- =====================================================================
 
+-- TABLA PRINCIPAL DE CONTRATOS
+CREATE TABLE Contrato (
+    contratoId                  VARCHAR(26) NOT NULL, -- ULID desde pipeline
+    nroContrato                 INT NOT NULL,
+    nroVersion                  INT NOT NULL,
+    -- Referencia a proveedor (código, no FK)
+    codProveedor                INT NOT NULL,
+    IndicadorCoberturaCliente   CHAR(1) NULL DEFAULT 'N',
+    fechaInicioVigencia         DATE NULL,
+    fechaFinVigencia            DATE NULL,
+    descripcion                 VARCHAR(500) NULL,
+    observaciones               VARCHAR(1000) NULL,
+    sistema                     CHAR(5) NOT NULL,
+    Compania                    CHAR(5) NOT NULL,
+    estRegistro                 CHAR(1) NOT NULL DEFAULT 'V',
+    codUsuarioCreadorSistema    CHAR(15) NULL,
+    fecCreacionsSistema         DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdateSistema     CHAR(15) NULL,
+    fecUpdateSistema            DATETIME2 NULL,
+    codUsuarioCreador           CHAR(15) NOT NULL,
+    fecCreacion                 DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdate            CHAR(15) NULL,
+    
+    CONSTRAINT PK_Contrato PRIMARY KEY (contratoId),
+    CONSTRAINT UK_Contrato_Numero UNIQUE (nroContrato, nroVersion, sistema, Compania),
+    CONSTRAINT CK_Contrato_EstRegistro CHECK (estRegistro IN ('V', 'H', 'A')),
+    CONSTRAINT CK_Contrato_IndCobertura CHECK (IndicadorCoberturaCliente IN ('S', 'N')),
+    CONSTRAINT CK_Contrato_Vigencia CHECK (fechaInicioVigencia IS NULL OR fechaFinVigencia IS NULL OR fechaInicioVigencia <= fechaFinVigencia),
+    CONSTRAINT CK_Contrato_Sistema CHECK (sistema IN ('ACSEL', 'INSIS', 'NVS')),
+    CONSTRAINT CK_Contrato_Compania CHECK (Compania IN ('20002', '40004'))
+);
 
+-- TABLA DE VERSIONES DE CONTRATOS
+CREATE TABLE ContratoVersion (
+    contratoVersionId           VARCHAR(26) NOT NULL, -- ULID desde pipeline
+    nroContrato                 INT NOT NULL,
+    nroVersion                  INT NOT NULL,
+    fechaInicioVigencia         DATE NOT NULL,
+    fechaFinVigencia            DATE NOT NULL,
+    descripcion                 VARCHAR(500) NULL,
+    observaciones               VARCHAR(1000) NULL,
+    sistema                     CHAR(5) NOT NULL,
+    Compania                    CHAR(5) NOT NULL,
+    estRegistro                 CHAR(1) NOT NULL DEFAULT 'V',
+    codUsuarioCreadorSistema    CHAR(15) NULL,
+    fecCreacionsSistema         DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdateSistema     CHAR(15) NULL,
+    fecUpdateSistema            DATETIME2 NULL,
+    codUsuarioCreador           CHAR(15) NOT NULL,
+    fecCreacion                 DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdate            CHAR(15) NULL,
+    
+    CONSTRAINT PK_ContratoVersion PRIMARY KEY (contratoVersionId),
+    CONSTRAINT UK_ContratoVersion UNIQUE (nroContrato, nroVersion, sistema, Compania),
+    CONSTRAINT CK_ContratoVersion_EstRegistro CHECK (estRegistro IN ('V', 'H', 'A')),
+    CONSTRAINT CK_ContratoVersion_Vigencia CHECK (fechaInicioVigencia <= fechaFinVigencia),
+    CONSTRAINT CK_ContratoVersion_Sistema CHECK (sistema IN ('ACSEL', 'INSIS', 'NVS')),
+    CONSTRAINT CK_ContratoVersion_Compania CHECK (Compania IN ('20002', '40004'))
+);
 
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [convenio].[DiagnosticoBeneficio](
-	[idDiagnosticoBeneficio] [nvarchar](max) NULL,
-	[idDiagnostico] [nvarchar](max) NULL,
-	[idBeneficio] [nvarchar](max) NULL,
-	[codDiagnostico] [nvarchar](max) NULL,
-	[codBeneficio] [nvarchar](max) NULL,
-	[codSistema] [nvarchar](max) NULL,
-	[estRegistro] [nvarchar](max) NULL,
-	[codUsuarioCreadorSistema] [nvarchar](max) NULL,
-	[fecCreacionsSistema] [datetime] NULL,
-	[codUsuarioUpdateSistema] [nvarchar](max) NULL,
-	[fecUpdateSistema] [datetime] NULL,
-	[codUsuarioCreador] [nvarchar](max) NULL,
-	[fecCreacion] [datetime] NULL,
-	[codUsuarioUpdate] [nvarchar](max) NULL,
-	[fecUpdate] [datetime] NULL
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [convenio].[Diagnostico](
-	[idDiagnostico] [nvarchar](max) NULL,
-	[codDiagnostico] [nvarchar](max) NULL,
-	[descripcionDiagnostico] [nvarchar](max) NULL,
-	[desTipDiagnostico] [nvarchar](max) NULL,
-	[codGrupoDiagnostico] [nvarchar](max) NULL,
-	[nivelDiagnostico] [nvarchar](max) NULL,
-	[codFrecuenciaDiagnostico] [int] NULL,
-	[indBeneficioCompartido] [nvarchar](max) NULL,
-	[indRequiereCartaGarantia] [nvarchar](max) NULL,
-	[indBeneficioExclusivo] [nvarchar](max) NULL,
-	[tipoPEAS] [nvarchar](max) NULL,
-	[numVersion] [int] NULL,
-	[sexoExclusivo] [nvarchar](max) NULL,
-	[indDiagnosticoNoRepetible] [int] NULL,
-	[codSistema] [nvarchar](max) NULL,
-	[fecStatus] [datetime] NULL,
-	[estRegistro] [nvarchar](max) NULL,
-	[codUsuarioCreadorSistema] [nvarchar](max) NULL,
-	[fecCreacionSistema] [datetime] NULL,
-	[codUsuarioUpdateSistema] [nvarchar](max) NULL,
-	[fecUpdateSistema] [datetime] NULL,
-	[codUsuarioCreador] [nvarchar](max) NULL,
-	[fecCreacion] [datetime] NULL,
-	[codUsuarioUpdate] [nvarchar](max) NULL,
-	[fecUpdate] [datetime] NULL
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [convenio].[Mae_Beneficio](
-	[idBeneficio] [nvarchar](max) NULL,
-	[idGrupoBeneficio] [nvarchar](max) NULL,
-	[idTipoCobertura] [nvarchar](max) NULL,
-	[idSubtipoCobertura] [nvarchar](max) NULL,
-	[codBeneficio] [nvarchar](max) NULL,
-	[descripcion] [nvarchar](max) NULL,
-	[desResumida] [nvarchar](max) NULL,
-	[codGrupoBeneficio] [nvarchar](max) NULL,
-	[codCobertura] [nvarchar](max) NULL,
-	[subtipoCobert] [nvarchar](max) NULL,
-	[estRegistro] [nvarchar](max) NULL,
-	[codSistema] [nvarchar](max) NULL,
-	[compania] [nvarchar](max) NULL,
-	[codUsuarioCreadorSistema] [nvarchar](max) NULL,
-	[fecCreacionSistema] [datetime] NULL,
-	[codUsuarioUpdateSistema] [nvarchar](max) NULL,
-	[fecUpdateSistema] [datetime] NULL,
-	[codUsuarioCreador] [nvarchar](max) NULL,
-	[fecCreacion] [datetime] NULL,
-	[codUsuarioUpdate] [nvarchar](max) NULL,
-	[fecUpdate] [datetime] NULL
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [convenio].[Mae_TipoCobertura](
-	[idTipoCobertura] [nvarchar](max) NULL,
-	[codCobertura] [nvarchar](max) NULL,
-	[descripcionTipo] [nvarchar](max) NULL,
-	[estRegistro] [nvarchar](max) NULL,
-	[codUsuarioCreador] [nvarchar](max) NULL,
-	[fecCreacion] [datetime] NULL,
-	[codUsuarioUpdate] [nvarchar](max) NULL,
-	[fecUpdate] [datetime] NULL
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [convenio].[Mae_TipoCobertura](
-	[idTipoCobertura] [nvarchar](max) NULL,
-	[codCobertura] [nvarchar](max) NULL,
-	[descripcionTipo] [nvarchar](max) NULL,
-	[estRegistro] [nvarchar](max) NULL,
-	[codUsuarioCreador] [nvarchar](max) NULL,
-	[fecCreacion] [datetime] NULL,
-	[codUsuarioUpdate] [nvarchar](max) NULL,
-	[fecUpdate] [datetime] NULL
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [convenio].[GrupoBeneficio](
-	[idGrupoBeneficio] [nvarchar](max) NULL,
-	[codGrupoBeneficio] [nvarchar](max) NULL,
-	[descripcionGrupoBeneficio] [nvarchar](max) NULL,
-	[codSistema] [nvarchar](max) NULL,
-	[estRegistro] [nvarchar](max) NULL,
-	[fecStatus] [datetime] NULL,
-	[codUsuarioCreadorSistema] [nvarchar](max) NULL,
-	[fecCreacionsSistema] [datetime] NULL,
-	[codUsuarioUpdateSistema] [nvarchar](max) NULL,
-	[fecUpdateSistema] [datetime] NULL,
-	[codUsuarioCreador] [nvarchar](max) NULL,
-	[fecCreacion] [datetime] NULL,
-	[codUsuarioUpdate] [nvarchar](max) NULL,
-	[fecUpdate] [datetime] NULL
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
+-- TABLA DE ASOCIACIÓN SUCURSAL-CONTRATO-VERSION
+CREATE TABLE SucursalContratoVersion (
+    contratoVersionSucursalId   VARCHAR(26) NOT NULL, -- ULID desde pipeline
+    nroContrato                 INT NOT NULL,
+    nroversion                  INT NOT NULL,
+    -- Referencias por código (no FK a microservicios)
+    CodigoProveedor             INT NOT NULL,
+    nroSucursalProveedor        INT NOT NULL,
+    tipoContrato                INT NOT NULL,
+    fechaInicioVigencia         DATE NOT NULL,
+    fechaFinVigencia            DATE NOT NULL,
+    PlazoCredito                INT NULL,
+    registroSEPS                VARCHAR(10) NULL,
+    codigoMoneda                INT NULL,
+    poblacionAsignada           INT NULL,
+    valorCapita                 NUMERIC(10,2) NULL,
+    sistema                     CHAR(5) NOT NULL,
+    Compania                    CHAR(5) NOT NULL,
+    estRegistro                 CHAR(1) NOT NULL DEFAULT 'V',
+    codUsuarioCreadorSistema    CHAR(15) NULL,
+    fecCreacionsSistema         DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdateSistema     CHAR(15) NULL,
+    fecUpdateSistema            DATETIME2 NULL,
+    codUsuarioCreador           CHAR(15) NOT NULL,
+    fecCreacion                 DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdate            CHAR(15) NULL,
+    
+    CONSTRAINT PK_SucursalContratoVersion PRIMARY KEY (contratoVersionSucursalId),
+    CONSTRAINT UK_SucursalContratoVersion UNIQUE (nroContrato, nroversion, CodigoProveedor, nroSucursalProveedor, sistema, Compania),
+    CONSTRAINT CK_SucursalContratoVersion_EstRegistro CHECK (estRegistro IN ('V', 'H', 'A')),
+    CONSTRAINT CK_SucursalContratoVersion_Vigencia CHECK (fechaInicioVigencia <= fechaFinVigencia),
+    CONSTRAINT CK_SucursalContratoVersion_Sistema CHECK (sistema IN ('ACSEL', 'INSIS', 'NVS')),
+    CONSTRAINT CK_SucursalContratoVersion_Compania CHECK (Compania IN ('20002', '40004'))
+);
 
-Solution: Optimize Schema & Query
-Step 1: Fix Data Types
-Change ID columns to fixed-length types to enable indexing:
+-- TABLA DE BENEFICIOS POR SUCURSAL-CONTRATO-VERSION
+CREATE TABLE SucursalContratoVersionBeneficio (
+    SucursalContratoVersionBeneficioId VARCHAR(26) NOT NULL, -- ULID desde pipeline
+    nroContrato                 INT NOT NULL,
+    nroVersion                  INT NOT NULL,
+    CodigoProveedor             INT NOT NULL,
+    nroSucursalProveedor        INT NOT NULL,
+    -- Referencia a beneficio (código, no FK a microservicio)
+    codigoBeneficio             INT NOT NULL,
+    costoFijoPaciente           NUMERIC(9,2) NULL,
+    tipoPEAS                    VARCHAR(1) NULL,
+    numVersion                  INT NULL,
+    fechaRegistroPEAS           DATE NULL,
+    condicionesAdicionales      VARCHAR(1000) NULL,
+    sistema                     CHAR(5) NOT NULL,
+    Compania                    CHAR(5) NOT NULL,
+    estRegistro                 CHAR(1) NOT NULL DEFAULT 'V',
+    codUsuarioCreadorSistema    CHAR(15) NULL,
+    fecCreacionsSistema         DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdateSistema     CHAR(15) NULL,
+    fecUpdateSistema            DATETIME2 NULL,
+    codUsuarioCreador           CHAR(15) NOT NULL,
+    fecCreacion                 DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioUpdate            CHAR(15) NULL,
+    
+    CONSTRAINT PK_SucursalContratoVersionBeneficio PRIMARY KEY (SucursalContratoVersionBeneficioId),
+    CONSTRAINT UK_SucursalContratoVersionBeneficio UNIQUE (nroContrato, nroVersion, CodigoProveedor, nroSucursalProveedor, codigoBeneficio, sistema, Compania),
+    CONSTRAINT CK_SucursalContratoVersionBeneficio_EstRegistro CHECK (estRegistro IN ('V', 'H', 'A')),
+    CONSTRAINT CK_SucursalContratoVersionBeneficio_Sistema CHECK (sistema IN ('ACSEL', 'INSIS', 'NVS')),
+    CONSTRAINT CK_SucursalContratoVersionBeneficio_Compania CHECK (Compania IN ('20002', '40004'))
+);
 
-sql
--- Convert MAX types to reasonable lengths (adjust lengths as needed)
-ALTER TABLE convenio.DiagnosticoBeneficio
-ALTER COLUMN idDiagnosticoBeneficio NVARCHAR(50);
+-- =====================================================================
+-- TABLA DE LOG DE SINCRONIZACIÓN CON MICROSERVICIOS
+-- =====================================================================
 
-ALTER TABLE convenio.DiagnosticoBeneficio
-ALTER COLUMN idDiagnostico NVARCHAR(50);
+CREATE TABLE Log_SincronizacionMicroservicios (
+    LogId                       VARCHAR(26) NOT NULL, -- ULID desde pipeline
+    TipoEntidad                 VARCHAR(50) NOT NULL, -- PROVEEDOR, BENEFICIO, SUCURSAL
+    CodigoEntidad               VARCHAR(50) NOT NULL, -- Código de la entidad
+    Microservicio               VARCHAR(100) NOT NULL, -- consulta-proveedor, consulta-convenios
+    Operacion                   VARCHAR(20) NOT NULL, -- CONSULTA, CACHE, ERROR
+    Estado                      VARCHAR(20) NOT NULL, -- EXITOSO, ERROR, TIMEOUT
+    TiempoRespuesta             INT NULL, -- Milisegundos
+    MensajeError                VARCHAR(1000) NULL,
+    DatosRequest                NVARCHAR(MAX) NULL, -- JSON del request
+    DatosResponse               NVARCHAR(MAX) NULL, -- JSON del response
+    VersionAPI                  VARCHAR(10) NULL,
+    CorrelationId               VARCHAR(50) NULL,
+    sistema                     CHAR(5) NOT NULL,
+    Compania                    CHAR(5) NOT NULL,
+    fecCreacion                 DATETIME2 NOT NULL DEFAULT GETDATE(),
+    codUsuarioCreador           CHAR(15) NOT NULL DEFAULT 'SYSTEM',
+    
+    CONSTRAINT PK_Log_SincronizacionMicroservicios PRIMARY KEY (LogId),
+    CONSTRAINT CK_Log_Sync_TipoEntidad CHECK (TipoEntidad IN ('PROVEEDOR', 'BENEFICIO', 'SUCURSAL')),
+    CONSTRAINT CK_Log_Sync_Operacion CHECK (Operacion IN ('CONSULTA', 'CACHE', 'ERROR', 'TIMEOUT')),
+    CONSTRAINT CK_Log_Sync_Estado CHECK (Estado IN ('EXITOSO', 'ERROR', 'TIMEOUT', 'PENDIENTE'))
+);
 
-ALTER TABLE convenio.DiagnosticoBeneficio
-ALTER COLUMN idBeneficio NVARCHAR(50);
+-- =====================================================================
+-- AGREGAR FK CON REFERENCIA A TIPO CONTRATO DESPUÉS DE CREAR TODAS LAS TABLAS
+-- =====================================================================
 
--- Repeat for other tables' ID columns
-ALTER TABLE convenio.Diagnostico
-ALTER COLUMN idDiagnostico NVARCHAR(50);
+-- Agregar FK a SucursalContratoVersion después de que todas las tablas estén creadas
+ALTER TABLE SucursalContratoVersion
+ADD CONSTRAINT FK_SucursalContratoVersion_TipoContrato 
+FOREIGN KEY (tipoContrato, sistema, Compania) 
+REFERENCES Tip_TipoContrato(tipoContrato, codSistema, codCompania);
 
-ALTER TABLE convenio.Mae_Beneficio
-ALTER COLUMN idBeneficio NVARCHAR(50);
-Step 2: Create Critical Indexes
-sql
--- Indexes for DiagnosticoBeneficio (join table)
-CREATE NONCLUSTERED INDEX IX_DiagBeneficio_Ids
-ON convenio.DiagnosticoBeneficio (idBeneficio, idDiagnostico)
-INCLUDE (estRegistro);
+-- Agregar FK a SucursalContratoVersionBeneficio
+ALTER TABLE SucursalContratoVersionBeneficio
+ADD CONSTRAINT FK_SucursalContratoVersionBeneficio_SucursalContrato 
+FOREIGN KEY (nroContrato, nroversion, CodigoProveedor, nroSucursalProveedor, sistema, Compania) 
+REFERENCES SucursalContratoVersion(nroContrato, nroversion, CodigoProveedor, nroSucursalProveedor, sistema, Compania);
 
-CREATE NONCLUSTERED INDEX IX_DiagBeneficio_Beneficio
-ON convenio.DiagnosticoBeneficio (idBeneficio)
-WHERE estRegistro = 'V';
+-- =====================================================================
+-- ÍNDICES OPTIMIZADOS
+-- =====================================================================
 
--- Indexes for Diagnostico
-CREATE NONCLUSTERED INDEX IX_Diagnostico_Filter
-ON convenio.Diagnostico (idDiagnostico, codSistema)
-INCLUDE (codDiagnostico, descripcionDiagnostico, estRegistro)
-WHERE estRegistro = 'V' AND codSistema = 'NVS';
+-- Índices para Tip_TipoContrato
+CREATE INDEX IX_Tip_TipoContrato_TipoContrato ON Tip_TipoContrato (tipoContrato);
+CREATE INDEX IX_Tip_TipoContrato_Sistema_Compania ON Tip_TipoContrato (codSistema, codCompania);
 
--- Indexes for Mae_Beneficio
-CREATE NONCLUSTERED INDEX IX_Beneficio_Filter
-ON convenio.Mae_Beneficio (idBeneficio, compania)
-INCLUDE (codBeneficio, descripcion, desResumida, codGrupoBeneficio);
-Step 3: Optimize the Query
-sql
-SELECT
-d.idDiagnostico,
-d.codDiagnostico,
-d.descripcionDiagnostico,
--- ... (other columns) ...,
-b.idBeneficio,
-b.codBeneficio,
-b.descripcion AS descripcionBeneficio
--- ... (other columns) ...
-FROM convenio.DiagnosticoBeneficio db WITH (INDEX(IX_DiagBeneficio_Beneficio))
-INNER JOIN convenio.Diagnostico d WITH (INDEX(IX_Diagnostico_Filter))
-ON d.idDiagnostico = db.idDiagnostico
-INNER JOIN convenio.Mae_Beneficio b WITH (INDEX(IX_Beneficio_Filter))
-ON db.idBeneficio = b.idBeneficio
-WHERE
-db.idBeneficio IN (
-'01JTGQEW5WM4CCMC4M74Q9AZ4T',
-'01JTGQEW5WV9XKN57PJVHEW6VW',
-'01JTGQEW5M3X3RQQPDY399WBK9',
-'01JTGQEW5MMNTHQGB79Z4KACGX'
-)
-ORDER BY d.codDiagnostico, b.codBeneficio
-OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY;
-Key Improvements:
-Faster Joins: Fixed-length IDs allow efficient index seeks
+-- Índices para referencias de proveedores
+CREATE INDEX IX_Mae_ProveedorRef_CodigoProveedor ON Mae_ProveedorRef (CodigoProveedor);
+CREATE INDEX IX_Mae_ProveedorRef_Sistema_Compania ON Mae_ProveedorRef (sistema, Compania);
+CREATE INDEX IX_Mae_ProveedorRef_EstadoSync ON Mae_ProveedorRef (estadoSincronizacion);
+CREATE INDEX IX_Mae_ProveedorRef_UltimaActualizacion ON Mae_ProveedorRef (ultimaActualizacion);
 
-Filtered Indexes: Reduce scanned rows using WHERE clauses
+-- Índices para referencias de beneficios
+CREATE INDEX IX_Mae_BeneficioRef_CodigoBeneficio ON Mae_BeneficioRef (CodigoBeneficio);
+CREATE INDEX IX_Mae_BeneficioRef_Sistema_Compania ON Mae_BeneficioRef (sistema, Compania);
+CREATE INDEX IX_Mae_BeneficioRef_EstadoSync ON Mae_BeneficioRef (estadoSincronizacion);
 
-Covering Indexes: Include all selected columns to avoid key lookups
+-- Índices para contratos
+CREATE INDEX IX_Contrato_NroContrato ON Contrato (nroContrato);
+CREATE INDEX IX_Contrato_CodProveedor ON Contrato (codProveedor);
+CREATE INDEX IX_Contrato_Sistema_Compania ON Contrato (sistema, Compania);
+CREATE INDEX IX_Contrato_EstRegistro ON Contrato (estRegistro);
 
-Query Hints: Force optimal index usage with WITH (INDEX(...))
+-- Índices para versiones de contratos
+CREATE INDEX IX_ContratoVersion_NroContrato ON ContratoVersion (nroContrato);
+CREATE INDEX IX_ContratoVersion_Sistema_Compania ON ContratoVersion (sistema, Compania);
+CREATE INDEX IX_ContratoVersion_EstRegistro ON ContratoVersion (estRegistro);
 
-Reduced I/O: Smaller data types decrease memory/page usage
+-- Índices para sucursal contrato version
+CREATE INDEX IX_SucursalContratoVersion_NroContrato ON SucursalContratoVersion (nroContrato);
+CREATE INDEX IX_SucursalContratoVersion_CodigoProveedor ON SucursalContratoVersion (CodigoProveedor);
+CREATE INDEX IX_SucursalContratoVersion_TipoContrato ON SucursalContratoVersion (tipoContrato);
+CREATE INDEX IX_SucursalContratoVersion_Sistema_Compania ON SucursalContratoVersion (sistema, Compania);
 
-Additional Recommendations:
-Batch Processing: For large datasets, process in chunks:
+-- Índices para beneficios
+CREATE INDEX IX_SucursalContratoVersionBeneficio_CodigoBeneficio ON SucursalContratoVersionBeneficio (codigoBeneficio);
+CREATE INDEX IX_SucursalContratoVersionBeneficio_NroContrato ON SucursalContratoVersionBeneficio (nroContrato);
+CREATE INDEX IX_SucursalContratoVersionBeneficio_Sistema_Compania ON SucursalContratoVersionBeneficio (sistema, Compania);
 
-sql
-DECLARE @PageSize INT = 1000;
-DECLARE @Page INT = 0;
-WHILE (1=1)
+-- Índices para log de sincronización
+CREATE INDEX IX_Log_Sync_TipoEntidad_Codigo ON Log_SincronizacionMicroservicios (TipoEntidad, CodigoEntidad);
+CREATE INDEX IX_Log_Sync_Microservicio ON Log_SincronizacionMicroservicios (Microservicio);
+CREATE INDEX IX_Log_Sync_FechaCreacion ON Log_SincronizacionMicroservicios (fecCreacion);
+CREATE INDEX IX_Log_Sync_Estado ON Log_SincronizacionMicroservicios (Estado);
+
+-- =====================================================================
+-- PROCEDIMIENTOS PARA SINCRONIZACIÓN CON MICROSERVICIOS
+-- =====================================================================
+
+-- Procedimiento para registrar logs de sincronización
+-- Nota: LogId debe ser proporcionado desde el pipeline
+CREATE PROCEDURE SP_RegistrarLogSincronizacion
+    @LogId VARCHAR(26),
+    @TipoEntidad VARCHAR(50),
+    @CodigoEntidad VARCHAR(50),
+    @Microservicio VARCHAR(100),
+    @Operacion VARCHAR(20),
+    @Estado VARCHAR(20),
+    @TiempoRespuesta INT = NULL,
+    @MensajeError VARCHAR(1000) = NULL,
+    @DatosRequest NVARCHAR(MAX) = NULL,
+    @DatosResponse NVARCHAR(MAX) = NULL,
+    @CorrelationId VARCHAR(50) = NULL,
+    @Sistema CHAR(5) = 'ACSEL',
+    @Compania CHAR(5) = '20002'
+AS
 BEGIN
-SELECT ...
-ORDER BY d.codDiagnostico
-OFFSET @Page * @PageSize ROWS
-FETCH NEXT @PageSize ROWS ONLY;
+    SET NOCOUNT ON;
+    
+    INSERT INTO Log_SincronizacionMicroservicios (
+        LogId, TipoEntidad, CodigoEntidad, Microservicio, Operacion, Estado,
+        TiempoRespuesta, MensajeError, DatosRequest, DatosResponse,
+        CorrelationId, sistema, Compania
+    ) VALUES (
+        @LogId, @TipoEntidad, @CodigoEntidad, @Microservicio, @Operacion, @Estado,
+        @TiempoRespuesta, @MensajeError, @DatosRequest, @DatosResponse,
+        @CorrelationId, @Sistema, @Compania
+    );
+END;
+
+-- Procedimiento para obtener estadísticas de microservicios
+CREATE PROCEDURE SP_EstadisticasMicroservicios
+    @FechaInicio DATE = NULL,
+    @FechaFin DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    IF @FechaInicio IS NULL SET @FechaInicio = DATEADD(DAY, -7, GETDATE());
+    IF @FechaFin IS NULL SET @FechaFin = GETDATE();
+    
+    SELECT 
+        Microservicio,
+        TipoEntidad,
+        COUNT(*) AS TotalLlamadas,
+        COUNT(CASE WHEN Estado = 'EXITOSO' THEN 1 END) AS Exitosas,
+        COUNT(CASE WHEN Estado = 'ERROR' THEN 1 END) AS Errores,
+        COUNT(CASE WHEN Estado = 'TIMEOUT' THEN 1 END) AS Timeouts,
+        AVG(TiempoRespuesta) AS TiempoPromedioMs,
+        MIN(fecCreacion) AS PrimeraLlamada,
+        MAX(fecCreacion) AS UltimaLlamada
+    FROM Log_SincronizacionMicroservicios
+    WHERE fecCreacion BETWEEN @FechaInicio AND @FechaFin
+    GROUP BY Microservicio, TipoEntidad
+    ORDER BY Microservicio, TipoEntidad;
+END;
+
+PRINT '';
+PRINT '======================================================================';
+PRINT 'ESQUEMA CREADO PARA ARQUITECTURA DE MICROSERVICIOS';
+PRINT '======================================================================';
+PRINT 'Tablas locales (Core): 5';
+PRINT 'Tablas de referencia (Cache): 3';
+PRINT 'Tabla de logs: 1';
+PRINT 'Índices optimizados: 20+';
+PRINT '';
+PRINT 'CONFIGURACIÓN DE IDs:';
+PRINT '  - Tipo: VARCHAR(26) para ULID';
+PRINT '  - Origen: Generados desde pipeline de datos';
+PRINT '  - Sin DEFAULTS: IDs proporcionados externamente';
+PRINT '';
+PRINT 'MICROSERVICIOS INTEGRADOS:';
+PRINT '  - consulta-proveedor: Mae_ProveedorRef, Mae_ProveedorSucursalRef';
+PRINT '  - consulta-convenios: Mae_BeneficioRef';
+PRINT '';
+PRINT 'ARQUITECTURA:';
+PRINT '  - Datos de proveedores/beneficios: Consultados en tiempo real';
+PRINT '  - Datos de contratos: Almacenados localmente';
+PRINT '  - Cache opcional: Para optimizar rendimiento';
+PRINT '  - Logs completos: Para monitoreo y debugging';
+PRINT '======================================================================';
 
-IF @@ROWCOUNT < @PageSize BREAK;
-SET @Page += 1;
-END
-Monitor Performance:
-
-sql
--- Check index usage
-SELECT
-object_name(object_id) AS TableName,
-index_id,
-user_seeks,
-user_scans
-FROM sys.dm_db_index_usage_stats
-WHERE database_id = db_id();
-Archive Old Data: Move historical records to separate tables.
-
-These changes should reduce your query execution time from >15s to <100ms for typical cases.
-
-
-
-
-BeneficioDiagnosticos-ssd/convenios-beneficio-diagnostico/v1.0.0/beneficios/diagnosticos","X-Correlation-Id":"789","X-Request-Id":"101112","usuarioAplicacion":"medico","nombreAplicacion":"mobile-app","procesoNegocio":"diagnostico-beneficio"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\pino-http\\logger.js:115:39)\n    at ServerResponse.onResponseComplete (C:\\Users\\ext.jbecerrak.softte\\Desktop\\srv-ms-sm-ne-ods-consultaCovenios\\ne-ods-consultaConvenio\\node_modules\\pino-http\\logger.js:178:14)\n    at ServerResponse.emit (node:events:530:35)\n    at onFinish (node:_http_outgoing:1005:10)\n    at callback (node:internal/streams/writable:756:21)\n    at afterWrite (node:internal/streams/writable:701:5)\n    at afterWriteTick (node:internal/streams/writable:687:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)"},"responseTime":15246,"msg":"request errored"}
-query failed:
-      SELECT
-          -- Datos del diagnóstico
-          d.idDiagnostico,
-          d.codDiagnostico,
-          d.descripcionDiagnostico,
-          d.desTipDiagnostico,
-          d.codGrupoDiagnostico,
-          d.estRegistro as estadoRegistroDiagnostico,
-          d.codSistema as codigoSistemaDiagnostico,
-          d.fecCreacionSistema as fechaCreacionDiagnostico,
-          --d.codDiagnosticoCie10,
-
-          -- Datos del beneficio
-          b.idBeneficio,
-          b.codBeneficio,
-          b.descripcion as descripcionBeneficio,
-          b.desResumida as nombreBeneficio,
-          b.codGrupoBeneficio,
-          b.estRegistro as estadoRegistroBeneficio,
-          b.codSistema as codigoSistemaBeneficio,
-          b.compania as companiaBeneficio,
-
-          -- Datos de la relación
-          db.estRegistro as estadoRelacion,
-          db.fecCreacionsSistema as fechaAsociacion
-
-      FROM convenio.Diagnostico d
-      INNER JOIN convenio.DiagnosticoBeneficio db ON d.idDiagnostico = db.idDiagnostico
-      INNER JOIN convenio.Mae_Beneficio b ON db.idBeneficio = b.idBeneficio
-      WHERE db.idBeneficio IN ('01JTGQEW5WM4CCMC4M74Q9AZ4T', '01JTGQEW5WV9XKN57PJVHEW6VW', '01JTGQEW5M3X3RQQPDY399WBK9', '01JTGQEW5MMNTHQGB79Z4KACGX') AND db.estRegistro = 'V' AND d.estRegistro = 'V' AND d.codSistema = 'NVS' AND b.compania = '20002'     
-      ORDER BY d.codDiagnostico, b.codBeneficio
-      OFFSET 0 ROWS
-      FETCH NEXT 10 ROWS ONLY
-
-error: QueryFailedError: Error: Timeout: Request failed to complete in 15000ms
-
-sql
--- Paso 1: Cambiar tipos de datos en columnas CLAVE
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ALTER COLUMN [idDiagnostico] NVARCHAR(50) NOT NULL;
-
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ALTER COLUMN [idBeneficio] NVARCHAR(50) NOT NULL;
-
--- Paso 2: Crear índices ESSENCIALES
-CREATE NONCLUSTERED INDEX IX_DiagBeneficio_Beneficio
-ON [convenio].[DiagnosticoBeneficio] ([idBeneficio], [estRegistro])
-INCLUDE ([idDiagnostico]);
-
-CREATE NONCLUSTERED INDEX IX_Diagnostico_Filtro
-ON [convenio].[Diagnostico] ([idDiagnostico], [codSistema])
-INCLUDE ([codDiagnostico], [descripcionDiagnostico])
-WHERE [estRegistro] = 'V' AND [codSistema] = 'NVS';
-
-
-2:10:42 PMStarted executing query at Line 38
-The statement has been terminated.
-Msg 40544, Level 17, State 12, Line 1
-The database 'db-sql-eu1-datos-desa01' has reached its size quota. Partition or delete data, drop indexes, or consult the documentation for possible resolutions.
-Total execution time: 00:01:45.558
-
-
-
--- ALTER TABLE [convenio].[DiagnosticoBeneficio] ADD CONSTRAINT PK_DiagnosticoBeneficio PRIMARY KEY (idDiagnosticoBeneficio);
--- For Diagnostico
-ALTER TABLE [convenio].[Diagnostico] ALTER COLUMN [idDiagnostico] NVARCHAR(36) NOT NULL;
-ALTER TABLE [convenio].[Diagnostico] ADD CONSTRAINT PK_Diagnostico PRIMARY KEY (idDiagnostico);
-
--- For Mae_Beneficio
-ALTER TABLE [convenio].[Mae_Beneficio] ALTER COLUMN [idBeneficio] NVARCHAR(36) NOT NULL;
-ALTER TABLE [convenio].[Mae_Beneficio] ADD CONSTRAINT PK_Mae_Beneficio PRIMARY KEY (idBeneficio);
-```
-*   *Caution:* Altering data types on tables with data can be a long-running operation and might require data conversion. Test thoroughly in a development environment.
-Use code with caution.
-b. Change Data Types for cod... columns:
-* For columns like codDiagnostico, codBeneficio, codSistema, codGrupoDiagnostico, compania, estRegistro, use NVARCHAR(N) with an appropriate maximum length (e.g., NVARCHAR(10), NVARCHAR(50)) instead of NVARCHAR(MAX). estRegistro could even be CHAR(1).
-* Example:
-sql ALTER TABLE [convenio].[DiagnosticoBeneficio] ALTER COLUMN [codDiagnostico] NVARCHAR(50); ALTER TABLE [convenio].[DiagnosticoBeneficio] ALTER COLUMN [codBeneficio] NVARCHAR(50); ALTER TABLE [convenio].[DiagnosticoBeneficio] ALTER COLUMN [codSistema] NVARCHAR(10); ALTER TABLE [convenio].[DiagnosticoBeneficio] ALTER COLUMN [estRegistro] CHAR(1); -- Apply similar changes to other tables
-c. Add/Verify Indexes:
-* Ensure you have Primary Keys defined on idDiagnosticoBeneficio, idDiagnostico, and idBeneficio in their respective tables (this automatically creates a clustered index).
-* Foreign Key Columns: Create non-clustered indexes on the foreign key columns in DiagnosticoBeneficio:
-sql CREATE INDEX IX_DiagnosticoBeneficio_idDiagnostico ON [convenio].[DiagnosticoBeneficio](idDiagnostico); CREATE INDEX IX_DiagnosticoBeneficio_idBeneficio ON [convenio].[DiagnosticoBeneficio](idBeneficio);
-* Columns in WHERE clause:
-```sql
--- For DiagnosticoBeneficio (compound index might be beneficial)
-CREATE INDEX IX_DiagnosticoBeneficio_idBeneficio_estRegistro ON [convenio].[DiagnosticoBeneficio](idBeneficio, estRegistro);
--- or if idBeneficio is already indexed well, just estRegistro:
--- CREATE INDEX IX_DiagnosticoBeneficio_estRegistro ON [convenio].DiagnosticoBeneficio;
--- For Diagnostico
-CREATE INDEX IX_Diagnostico_estRegistro_codSistema ON [convenio].[Diagnostico](estRegistro, codSistema);
-
--- For Mae_Beneficio
-CREATE INDEX IX_Mae_Beneficio_compania_estRegistro ON [convenio].[Mae_Beneficio](compania, estRegistro);
-```
-*   **Columns in ORDER BY clause:**
-```sql
-CREATE INDEX IX_Diagnostico_codDiagnostico ON [convenio].[Diagnostico](codDiagnostico);
-CREATE INDEX IX_Mae_Beneficio_codBeneficio ON [convenio].[Mae_Beneficio](codBeneficio);
--- A covering index for the select and order by
-
-
-
-
-/*======================================================
-NÚMERO DE REQUERIMIENTO: Optimización de Tablas Convenio
-NOMBRE ARTEFACTO: Optimización de campos y creación de índices
-AUTOR: Sistema                    FECHA CREACIÓN: 2025-06-05
-OBJETIVO: Optimizar los tipos de datos y crear índices apropiados
-para las tablas del esquema convenio según estándares Pacífico Salud
-======================================================*/
-
--- =====================================================
--- TABLA: DiagnosticoBeneficio
--- =====================================================
-
--- Cambiar tipos de datos para DiagnosticoBeneficio
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ALTER COLUMN [idDiagnosticoBeneficio] VARCHAR(26) NULL;
-
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ALTER COLUMN [idDiagnostico] VARCHAR(26) NULL;
-
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ALTER COLUMN [idBeneficio] VARCHAR(26) NULL;
-
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ALTER COLUMN [codDiagnostico] CHAR(5) NULL;
-
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ALTER COLUMN [codBeneficio] CHAR(5) NULL;
-
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ALTER COLUMN [codSistema] CHAR(5) NULL;
-
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ALTER COLUMN [estRegistro] CHAR(1) NULL;
-
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ALTER COLUMN [codUsuarioCreadorSistema] VARCHAR(15) NULL;
-
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ALTER COLUMN [codUsuarioUpdateSistema] VARCHAR(15) NULL;
-
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ALTER COLUMN [codUsuarioCreador] VARCHAR(15) NULL;
-
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ALTER COLUMN [codUsuarioUpdate] VARCHAR(15) NULL;
-
--- =====================================================
--- TABLA: Diagnostico
--- =====================================================
-
--- Cambiar tipos de datos para Diagnostico
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [idDiagnostico] VARCHAR(26) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [codDiagnostico] CHAR(5) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [descripcionDiagnostico] VARCHAR(150) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [desTipDiagnostico] VARCHAR(20) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [codGrupoDiagnostico] CHAR(5) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [nivelDiagnostico] CHAR(1) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [indBeneficioCompartido] CHAR(1) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [indRequiereCartaGarantia] CHAR(1) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [indBeneficioExclusivo] CHAR(1) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [tipoPEAS] VARCHAR(1) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [sexoExclusivo] CHAR(1) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [codSistema] CHAR(5) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [estRegistro] CHAR(1) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [codUsuarioCreadorSistema] VARCHAR(15) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [codUsuarioUpdateSistema] VARCHAR(15) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [codUsuarioCreador] VARCHAR(15) NULL;
-
-ALTER TABLE [convenio].[Diagnostico]
-ALTER COLUMN [codUsuarioUpdate] VARCHAR(15) NULL;
-
--- =====================================================
--- TABLA: Mae_Beneficio
--- =====================================================
-
--- Cambiar tipos de datos para Mae_Beneficio
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [idBeneficio] VARCHAR(26) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [idGrupoBeneficio] VARCHAR(26) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [idTipoCobertura] VARCHAR(26) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [idSubtipoCobertura] VARCHAR(26) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [codBeneficio] CHAR(3) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [descripcion] VARCHAR(80) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [desResumida] VARCHAR(20) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [codGrupoBeneficio] CHAR(3) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [codCobertura] CHAR(1) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [subtipoCobert] CHAR(3) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [estRegistro] CHAR(1) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [codSistema] CHAR(5) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [compania] CHAR(5) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [codUsuarioCreadorSistema] VARCHAR(15) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [codUsuarioUpdateSistema] VARCHAR(15) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [codUsuarioCreador] VARCHAR(15) NULL;
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ALTER COLUMN [codUsuarioUpdate] VARCHAR(15) NULL;
-
--- =====================================================
--- TABLA: Mae_TipoCobertura
--- =====================================================
-
--- Cambiar tipos de datos para Mae_TipoCobertura
-ALTER TABLE [convenio].[Mae_TipoCobertura]
-ALTER COLUMN [idTipoCobertura] VARCHAR(26) NULL;
-
-ALTER TABLE [convenio].[Mae_TipoCobertura]
-ALTER COLUMN [codCobertura] CHAR(1) NULL;
-
-ALTER TABLE [convenio].[Mae_TipoCobertura]
-ALTER COLUMN [descripcionTipo] VARCHAR(26) NULL;
-
-ALTER TABLE [convenio].[Mae_TipoCobertura]
-ALTER COLUMN [estRegistro] CHAR(1) NULL;
-
-ALTER TABLE [convenio].[Mae_TipoCobertura]
-ALTER COLUMN [codUsuarioCreador] VARCHAR(15) NULL;
-
-ALTER TABLE [convenio].[Mae_TipoCobertura]
-ALTER COLUMN [codUsuarioUpdate] VARCHAR(15) NULL;
-
--- =====================================================
--- TABLA: GrupoBeneficio
--- =====================================================
-
--- Cambiar tipos de datos para GrupoBeneficio
-ALTER TABLE [convenio].[GrupoBeneficio]
-ALTER COLUMN [idGrupoBeneficio] VARCHAR(26) NULL;
-
-ALTER TABLE [convenio].[GrupoBeneficio]
-ALTER COLUMN [codGrupoBeneficio] CHAR(8) NULL;
-
-ALTER TABLE [convenio].[GrupoBeneficio]
-ALTER COLUMN [descripcionGrupoBeneficio] VARCHAR(30) NULL;
-
-ALTER TABLE [convenio].[GrupoBeneficio]
-ALTER COLUMN [codSistema] CHAR(5) NULL;
-
-ALTER TABLE [convenio].[GrupoBeneficio]
-ALTER COLUMN [estRegistro] CHAR(1) NULL;
-
-ALTER TABLE [convenio].[GrupoBeneficio]
-ALTER COLUMN [codUsuarioCreadorSistema] VARCHAR(15) NULL;
-
-ALTER TABLE [convenio].[GrupoBeneficio]
-ALTER COLUMN [codUsuarioUpdateSistema] VARCHAR(15) NULL;
-
-ALTER TABLE [convenio].[GrupoBeneficio]
-ALTER COLUMN [codUsuarioCreador] VARCHAR(15) NULL;
-
-ALTER TABLE [convenio].[GrupoBeneficio]
-ALTER COLUMN [codUsuarioUpdate] VARCHAR(15) NULL;
-
--- =====================================================
--- CREACIÓN DE PRIMARY KEYS
--- =====================================================
-
--- Primary Key para DiagnosticoBeneficio
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ADD CONSTRAINT PK_DiagnosticoBeneficio PRIMARY KEY ([idDiagnosticoBeneficio]);
-
--- Primary Key para Diagnostico
-ALTER TABLE [convenio].[Diagnostico]
-ADD CONSTRAINT PK_Diagnostico PRIMARY KEY ([idDiagnostico]);
-
--- Primary Key para Mae_Beneficio
-ALTER TABLE [convenio].[Mae_Beneficio]
-ADD CONSTRAINT PK_Mae_Beneficio PRIMARY KEY ([idBeneficio]);
-
--- Primary Key para Mae_TipoCobertura
-ALTER TABLE [convenio].[Mae_TipoCobertura]
-ADD CONSTRAINT PK_Mae_TipoCobertura PRIMARY KEY ([idTipoCobertura]);
-
--- Primary Key para GrupoBeneficio
-ALTER TABLE [convenio].[GrupoBeneficio]
-ADD CONSTRAINT PK_GrupoBeneficio PRIMARY KEY ([idGrupoBeneficio]);
-
--- =====================================================
--- CREACIÓN DE FOREIGN KEYS
--- =====================================================
-
--- Foreign Key: DiagnosticoBeneficio -> Diagnostico
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ADD CONSTRAINT FK_DiagnosticoBeneficio_Diagnostico
-FOREIGN KEY ([idDiagnostico]) REFERENCES [convenio].[Diagnostico]([idDiagnostico]);
-
--- Foreign Key: DiagnosticoBeneficio -> Mae_Beneficio
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ADD CONSTRAINT FK_DiagnosticoBeneficio_Mae_Beneficio
-FOREIGN KEY ([idBeneficio]) REFERENCES [convenio].[Mae_Beneficio]([idBeneficio]);
-
--- Foreign Key: Mae_Beneficio -> GrupoBeneficio
-ALTER TABLE [convenio].[Mae_Beneficio]
-ADD CONSTRAINT FK_Mae_Beneficio_GrupoBeneficio
-FOREIGN KEY ([idGrupoBeneficio]) REFERENCES [convenio].[GrupoBeneficio]([idGrupoBeneficio]);
-
--- Foreign Key: Mae_Beneficio -> Mae_TipoCobertura
-ALTER TABLE [convenio].[Mae_Beneficio]
-ADD CONSTRAINT FK_Mae_Beneficio_Mae_TipoCobertura
-FOREIGN KEY ([idTipoCobertura]) REFERENCES [convenio].[Mae_TipoCobertura]([idTipoCobertura]);
-
--- =====================================================
--- CREACIÓN DE ÍNDICES OPTIMIZADOS
--- =====================================================
-
--- Índices para DiagnosticoBeneficio
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_01
-ON [convenio].[DiagnosticoBeneficio]([codDiagnostico], [codBeneficio]);
-
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_02
-ON [convenio].[DiagnosticoBeneficio]([estRegistro]);
-
--- Índices para Diagnostico
-CREATE NONCLUSTERED INDEX IX_Diagnostico_01
-ON [convenio].[Diagnostico]([codDiagnostico]);
-
-CREATE NONCLUSTERED INDEX IX_Diagnostico_02
-ON [convenio].[Diagnostico]([estRegistro], [codSistema]);
-
-CREATE NONCLUSTERED INDEX IX_Diagnostico_03
-ON [convenio].[Diagnostico]([codGrupoDiagnostico]);
-
--- Índices para Mae_Beneficio
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_01
-ON [convenio].[Mae_Beneficio]([codBeneficio]);
-
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_02
-ON [convenio].[Mae_Beneficio]([estRegistro], [codSistema]);
-
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_03
-ON [convenio].[Mae_Beneficio]([codGrupoBeneficio]);
-
--- Índices para Mae_TipoCobertura
-CREATE NONCLUSTERED INDEX IX_Mae_TipoCobertura_01
-ON [convenio].[Mae_TipoCobertura]([codCobertura]);
-
-CREATE NONCLUSTERED INDEX IX_Mae_TipoCobertura_02
-ON [convenio].[Mae_TipoCobertura]([estRegistro]);
-
--- Índices para GrupoBeneficio
-CREATE NONCLUSTERED INDEX IX_GrupoBeneficio_01
-ON [convenio].[GrupoBeneficio]([codGrupoBeneficio]);
-
-CREATE NONCLUSTERED INDEX IX_GrupoBeneficio_02
-ON [convenio].[GrupoBeneficio]([estRegistro], [codSistema]);
-
--- =====================================================
--- UNIQUE CONSTRAINTS
--- =====================================================
-
--- Unique constraint para códigos únicos
-ALTER TABLE [convenio].[Diagnostico]
-ADD CONSTRAINT UK_Diagnostico_codDiagnostico UNIQUE ([codDiagnostico]);
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ADD CONSTRAINT UK_Mae_Beneficio_codBeneficio UNIQUE ([codBeneficio]);
-
-ALTER TABLE [convenio].[Mae_TipoCobertura]
-ADD CONSTRAINT UK_Mae_TipoCobertura_codCobertura UNIQUE ([codCobertura]);
-
-ALTER TABLE [convenio].[GrupoBeneficio]
-ADD CONSTRAINT UK_GrupoBeneficio_codGrupoBeneficio UNIQUE ([codGrupoBeneficio]);
-
--- =====================================================
--- CHECK CONSTRAINTS
--- =====================================================
-
--- Check constraints para campos de estado
-ALTER TABLE [convenio].[DiagnosticoBeneficio]
-ADD CONSTRAINT CK_DiagnosticoBeneficio_estRegistro
-CHECK ([estRegistro] IN ('A', 'I', 'E'));
-
-ALTER TABLE [convenio].[Diagnostico]
-ADD CONSTRAINT CK_Diagnostico_estRegistro
-CHECK ([estRegistro] IN ('A', 'I', 'E'));
-
-ALTER TABLE [convenio].[Mae_Beneficio]
-ADD CONSTRAINT CK_Mae_Beneficio_estRegistro
-CHECK ([estRegistro] IN ('A', 'I', 'E'));
-
-ALTER TABLE [convenio].[Mae_TipoCobertura]
-ADD CONSTRAINT CK_Mae_TipoCobertura_estRegistro
-CHECK ([estRegistro] IN ('A', 'I', 'E'));
-
-ALTER TABLE [convenio].[GrupoBeneficio]
-ADD CONSTRAINT CK_GrupoBeneficio_estRegistro
-CHECK ([estRegistro] IN ('A', 'I', 'E'));
-
--- Check constraints para campos de indicadores
-ALTER TABLE [convenio].[Diagnostico]
-ADD CONSTRAINT CK_Diagnostico_indBeneficioCompartido
-CHECK ([indBeneficioCompartido] IN ('S', 'N'));
-
-ALTER TABLE [convenio].[Diagnostico]
-ADD CONSTRAINT CK_Diagnostico_indRequiereCartaGarantia
-CHECK ([indRequiereCartaGarantia] IN ('S', 'N'));
-
-ALTER TABLE [convenio].[Diagnostico]
-ADD CONSTRAINT CK_Diagnostico_indBeneficioExclusivo
-CHECK ([indBeneficioExclusivo] IN ('S', 'N'));
-
-ALTER TABLE [convenio].[Diagnostico]
-ADD CONSTRAINT CK_Diagnostico_sexoExclusivo
-CHECK ([sexoExclusivo] IN ('M', 'F', 'A'))
-
-
-
-/*======================================================
-NÚMERO DE REQUERIMIENTO: Optimización Performance Query Diagnósticos-Beneficios
-NOMBRE ARTEFACTO: Índices de performance para consulta crítica
-AUTOR: Sistema                    FECHA CREACIÓN: 2025-06-05
-OBJETIVO: Crear índices específicos para optimizar la query de consulta
-de diagnósticos-beneficios que actualmente tarda 15+ segundos
-QUERY OBJETIVO: Consulta con filtros en idBeneficio, estRegistro, codSistema y compania
-======================================================*/
-
--- =====================================================
--- ANÁLISIS DE LA QUERY PROBLEMÁTICA
--- =====================================================
 /*
-QUERY ACTUAL:
-FROM convenio.Diagnostico d
-INNER JOIN convenio.DiagnosticoBeneficio db ON d.idDiagnostico = db.idDiagnostico
-INNER JOIN convenio.Mae_Beneficio b ON db.idBeneficio = b.idBeneficio
-WHERE db.idBeneficio IN ('01JTGQEW5WM4CCMC4M74Q9AZ4T', '01JTGQEW5WV9XKN57PJVHEW6VW', '01JTGQEW5M3X3RQQPDY399WBK9', '01JTGQEW5MMNTHQGB79Z4KACGX')
-    AND db.estRegistro = 'V'
-    AND d.estRegistro = 'V'
-    AND d.codSistema = 'NVS'
-    AND b.compania = '20002'
-ORDER BY d.codDiagnostico, b.codBeneficio
+CAMBIOS REALIZADOS PARA IDs EXTERNOS:
 
-PROBLEMAS IDENTIFICADOS:
-1. Filtro por lista de IDs en db.idBeneficio (IN clause)
-2. Múltiples filtros en campos sin índices
-3. JOINs en campos no indexados eficientemente
-4. ORDER BY en campos sin índices de ordenamiento
-5. Paginación (OFFSET/FETCH) sin índices optimizados
+1. TIPO DE DATOS:
+   - Cambiado de UNIQUEIDENTIFIER a VARCHAR(26) para ULID
+   - Removido DEFAULT NEWID() de todas las columnas de ID principales
+
+2. TABLAS AFECTADAS:
+   - Tip_TipoContrato: tipoContratoId
+   - Mae_ProveedorRef: ProveedorRefId
+   - Mae_BeneficioRef: BeneficioRefId
+   - Mae_ProveedorSucursalRef: ProveedorSucursalRefId
+   - Contrato: contratoId
+   - ContratoVersion: contratoVersionId
+   - SucursalContratoVersion: contratoVersionSucursalId
+   - SucursalContratoVersionBeneficio: SucursalContratoVersionBeneficioId
+   - Log_SincronizacionMicroservicios: LogId
+
+3. PROCEDIMIENTOS:
+   - SP_RegistrarLogSincronizacion: Ahora requiere @LogId como parámetro
+
+4. MANTENIDO:
+   - Todas las restricciones y constraints
+   - Índices optimizados
+   - Foreign Keys (ajustadas para nuevos tipos)
+   - Campos de auditoría con sus defaults correspondientes
+
+IMPORTANTE PARA EL PIPELINE:
+- Generar ULID antes de insertar en cualquier tabla
+- Todos los IDs principales deben ser proporcionados
+- Los campos de auditoría mantienen sus defaults automáticos
 */
-
--- =====================================================
--- ÍNDICES CRÍTICOS PARA DiagnosticoBeneficio
--- =====================================================
-
--- ÍNDICE PRINCIPAL: Optimiza el filtro IN y estRegistro
--- Cubre: WHERE db.idBeneficio IN (...) AND db.estRegistro = 'V'
--- Include: campos necesarios para evitar Key Lookups
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_01
-ON [convenio].[DiagnosticoBeneficio] ([idBeneficio], [estRegistro])
-INCLUDE ([idDiagnostico], [codDiagnostico], [codBeneficio], [codSistema], [fecCreacionsSistema])
-WITH (FILLFACTOR = 90, PAD_INDEX = ON);
-
--- ÍNDICE PARA JOIN: Optimiza JOIN con Diagnostico
--- Cubre: ON d.idDiagnostico = db.idDiagnostico
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_02
-ON [convenio].[DiagnosticoBeneficio] ([idDiagnostico], [estRegistro])
-INCLUDE ([idBeneficio], [codDiagnostico], [codBeneficio]);
-
--- ÍNDICE COMPUESTO ALTERNATIVO: Para consultas frecuentes por estado
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_03
-ON [convenio].[DiagnosticoBeneficio] ([estRegistro], [codSistema])
-INCLUDE ([idDiagnostico], [idBeneficio], [codDiagnostico], [codBeneficio]);
-
--- =====================================================
--- ÍNDICES CRÍTICOS PARA Diagnostico
--- =====================================================
-
--- ÍNDICE PRINCIPAL: Optimiza filtros de estado y sistema
--- Cubre: WHERE d.estRegistro = 'V' AND d.codSistema = 'NVS'
-CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_01
-ON [convenio].[Diagnostico] ([estRegistro], [codSistema])
-INCLUDE ([idDiagnostico], [codDiagnostico], [descripcionDiagnostico], [desTipDiagnostico], [codGrupoDiagnostico], [fecCreacionSistema]);
-
--- ÍNDICE PARA ORDER BY: Optimiza ordenamiento
--- Cubre: ORDER BY d.codDiagnostico
-CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_02
-ON [convenio].[Diagnostico] ([codDiagnostico], [estRegistro])
-INCLUDE ([idDiagnostico], [descripcionDiagnostico], [codSistema]);
-
--- ÍNDICE PARA JOIN: Optimiza JOIN desde DiagnosticoBeneficio
-CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_03
-ON [convenio].[Diagnostico] ([idDiagnostico], [estRegistro], [codSistema])
-INCLUDE ([codDiagnostico], [descripcionDiagnostico], [desTipDiagnostico], [codGrupoDiagnostico]);
-
--- =====================================================
--- ÍNDICES CRÍTICOS PARA Mae_Beneficio
--- =====================================================
-
--- ÍNDICE PRINCIPAL: Optimiza filtro por compañía
--- Cubre: WHERE b.compania = '20002'
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Performance_01
-ON [convenio].[Mae_Beneficio] ([compania], [estRegistro])
-INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida], [codGrupoBeneficio], [codSistema]);
-
--- ÍNDICE PARA JOIN: Optimiza JOIN desde DiagnosticoBeneficio
--- Cubre: ON db.idBeneficio = b.idBeneficio
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Performance_02
-ON [convenio].[Mae_Beneficio] ([idBeneficio], [compania])
-INCLUDE ([codBeneficio], [descripcion], [desResumida], [estRegistro], [codGrupoBeneficio], [codSistema]);
-
--- ÍNDICE PARA ORDER BY: Optimiza ordenamiento por código
--- Cubre: ORDER BY b.codBeneficio
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Performance_03
-ON [convenio].[Mae_Beneficio] ([codBeneficio], [compania])
-INCLUDE ([idBeneficio], [descripcion], [desResumida], [estRegistro]);
-
--- =====================================================
--- ÍNDICES COMPUESTOS AVANZADOS
--- =====================================================
-
--- ÍNDICE COVERING: Para consultas completas sin Key Lookups
--- Tabla DiagnosticoBeneficio - Covering Index
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Covering
-ON [convenio].[DiagnosticoBeneficio] ([idBeneficio], [estRegistro], [idDiagnostico])
-INCLUDE ([codDiagnostico], [codBeneficio], [codSistema], [fecCreacionsSistema], [codUsuarioCreadorSistema])
-WITH (FILLFACTOR = 85);
-
--- ÍNDICE PARA PAGINACIÓN: Optimiza OFFSET/FETCH
--- Covering index para paginación eficiente
-CREATE NONCLUSTERED INDEX IX_Performance_Pagination
-ON [convenio].[DiagnosticoBeneficio] ([estRegistro], [idBeneficio])
-INCLUDE ([idDiagnostico], [codDiagnostico], [codBeneficio], [codSistema])
-WITH (FILLFACTOR = 90);
-
--- =====================================================
--- ESTADÍSTICAS PARA OPTIMIZACIÓN
--- =====================================================
-
--- Actualizar estadísticas después de crear índices
-UPDATE STATISTICS [convenio].[DiagnosticoBeneficio] WITH FULLSCAN;
-UPDATE STATISTICS [convenio].[Diagnostico] WITH FULLSCAN;
-UPDATE STATISTICS [convenio].[Mae_Beneficio] WITH FULLSCAN;
-
--- =====================================================
--- QUERY OPTIMIZADA SUGERIDA
--- =====================================================
-/*
--- VERSIÓN OPTIMIZADA DE LA QUERY ORIGINAL
--- Con hints para forzar uso de índices si es necesario
-
-SELECT
-    -- Datos del diagnóstico
-    d.idDiagnostico,
-    d.codDiagnostico,
-    d.descripcionDiagnostico,
-    d.desTipDiagnostico,
-    d.codGrupoDiagnostico,
-    d.estRegistro as estadoRegistroDiagnostico,
-    d.codSistema as codigoSistemaDiagnostico,
-    d.fecCreacionSistema as fechaCreacionDiagnostico,
-
-    -- Datos del beneficio
-    b.idBeneficio,
-    b.codBeneficio,
-    b.descripcion as descripcionBeneficio,
-    b.desResumida as nombreBeneficio,
-    b.codGrupoBeneficio,
-    b.estRegistro as estadoRegistroBeneficio,
-    b.codSistema as codigoSistemaBeneficio,
-    b.compania as companiaBeneficio,
-
-    -- Datos de la relación
-    db.estRegistro as estadoRelacion,
-    db.fecCreacionsSistema as fechaAsociacion
-
-FROM [convenio].[Mae_Beneficio] b WITH (INDEX(IX_Mae_Beneficio_Performance_01))
-INNER JOIN [convenio].[DiagnosticoBeneficio] db WITH (INDEX(IX_DiagnosticoBeneficio_Performance_01))
-    ON db.idBeneficio = b.idBeneficio
-INNER JOIN [convenio].[Diagnostico] d WITH (INDEX(IX_Diagnostico_Performance_01))
-    ON d.idDiagnostico = db.idDiagnostico
-WHERE b.compania = '20002'
-    AND b.idBeneficio IN ('01JTGQEW5WM4CCMC4M74Q9AZ4T', '01JTGQEW5WV9XKN57PJVHEW6VW', '01JTGQEW5M3X3RQQPDY399WBK9', '01JTGQEW5MMNTHQGB79Z4KACGX')
-    AND db.estRegistro = 'V'
-    AND d.estRegistro = 'V'
-    AND d.codSistema = 'NVS'
-ORDER BY d.codDiagnostico, b.codBeneficio
-OFFSET 0 ROWS
-FETCH NEXT 10 ROWS ONLY;
-*/
-
--- =====================================================
--- MONITOREO DE PERFORMANCE
--- =====================================================
-
--- Query para monitorear uso de índices
-SELECT
-i.name AS IndexName,
-s.user_seeks,
-s.user_scans,
-s.user_lookups,
-s.user_updates,
-s.last_user_seek,
-s.last_user_scan
-FROM sys.indexes i
-INNER JOIN sys.dm_db_index_usage_stats s ON i.object_id = s.object_id AND i.index_id = s.index_id
-INNER JOIN sys.objects o ON i.object_id = o.object_id
-INNER JOIN sys.schemas sc ON o.schema_id = sc.schema_id
-WHERE sc.name = 'convenio'
-AND i.name LIKE '%Performance%'
-ORDER BY s.user_seeks DESC, s.user_scans DESC;
-
--- Query para verificar fragmentación de índices
-SELECT
-DB_NAME() AS DatabaseName,
-OBJECT_SCHEMA_NAME(ips.object_id) AS SchemaName,
-OBJECT_NAME(ips.object_id) AS ObjectName,
-i.name AS IndexName,
-ips.avg_fragmentation_in_percent,
-ips.page_count
-FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'LIMITED') ips
-INNER JOIN sys.indexes i ON ips.object_id = i.object_id AND ips.index_id = i.index_id
-WHERE OBJECT_SCHEMA_NAME(ips.object_id) = 'convenio'
-AND ips.avg_fragmentation_in_percent > 10
-AND ips.page_count > 1000
-ORDER BY ips.avg_fragmentation_in_percent DESC;
-
--- =====================================================
--- VALIDACIÓN FINAL
--- =====================================================
-
-PRINT 'Índices de performance creados exitosamente.';
-PRINT 'Tiempo esperado de mejora: de 15+ segundos a menos de 500ms';
-PRINT 'Verificar plan de ejecución antes y después de aplicar los índices.';
-PRINT 'Monitorear uso de índices con las queries de monitoreo incluidas.';
-
--- Verificar que los índices se crearon
-SELECT
-t.name AS TableName,
-i.name AS IndexName,
-i.type_desc AS IndexType,
-COL_NAME(ic.object_id, ic.column_id) AS ColumnName,
-ic.is_included_column
-FROM sys.tables t
-INNER JOIN sys.indexes i ON t.object_id = i.object_id
-INNER JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
-INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
-WHERE s.name = 'convenio'
-AND i.name LIKE '%Performance%'
-ORDER BY t.name, i.name, ic.key_ordinal;
-
-****************
-
-
-
-/*======================================================
-NÚMERO DE REQUERIMIENTO: Índices compatibles con Azure SQL Database
-NOMBRE ARTEFACTO: Índices de performance para estructura actual
-AUTOR: Sistema                    FECHA CREACIÓN: 2025-06-05
-OBJETIVO: Crear índices compatibles con Azure SQL Database
-considerando las limitaciones de campos NVARCHAR(MAX)
-======================================================*/
-
--- =====================================================
--- IMPORTANTES LIMITACIONES DE AZURE SQL DATABASE:
--- 1. No se pueden indexar columnas NVARCHAR(MAX) o VARCHAR(MAX)
--- 2. Las columnas MAX solo pueden ir en INCLUDE clause
--- 3. Máximo 900 bytes por clave de índice
--- =====================================================
-
--- =====================================================
--- PASO 1: VERIFICAR TIPOS DE DATOS ACTUALES
--- =====================================================
-SELECT
-c.TABLE_NAME,
-c.COLUMN_NAME,
-c.DATA_TYPE,
-c.CHARACTER_MAXIMUM_LENGTH,
-c.IS_NULLABLE
-FROM INFORMATION_SCHEMA.COLUMNS c
-WHERE c.TABLE_SCHEMA = 'convenio'
-AND c.COLUMN_NAME IN ('compania', 'estRegistro', 'codSistema', 'idBeneficio', 'idDiagnostico')
-ORDER BY c.TABLE_NAME, c.COLUMN_NAME;
-
--- =====================================================
--- ÍNDICES PARA DiagnosticoBeneficio
--- =====================================================
-
--- ÍNDICE PRINCIPAL: Solo campos indexables en KEY
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_01
-ON [convenio].[DiagnosticoBeneficio] ([estRegistro])
-INCLUDE ([idDiagnosticoBeneficio], [idDiagnostico], [idBeneficio], [codDiagnostico], [codBeneficio], [codSistema], [fecCreacionsSistema]);
-
--- ÍNDICE PARA FILTRO IN: Solo si idBeneficio no es MAX
--- Verificar primero si idBeneficio es indexable
-IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-WHERE TABLE_SCHEMA = 'convenio'
-AND TABLE_NAME = 'DiagnosticoBeneficio'
-AND COLUMN_NAME = 'idBeneficio'
-AND (DATA_TYPE NOT LIKE '%max%' OR CHARACTER_MAXIMUM_LENGTH < 900))
-BEGIN
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_02
-ON [convenio].[DiagnosticoBeneficio] ([estRegistro])
-INCLUDE ([idDiagnosticoBeneficio], [idDiagnostico], [idBeneficio], [codDiagnostico], [codBeneficio], [codSistema]);
-PRINT 'Índice IX_DiagnosticoBeneficio_Performance_02 creado exitosamente';
-END
-ELSE
-BEGIN
-PRINT 'ADVERTENCIA: idBeneficio es NVARCHAR(MAX), no se puede indexar directamente';
-END
-
--- ÍNDICE PARA JOIN con Diagnostico
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_03
-ON [convenio].[DiagnosticoBeneficio] ([estRegistro])
-INCLUDE ([idDiagnostico], [idBeneficio], [codDiagnostico], [codBeneficio]);
-
--- =====================================================
--- ÍNDICES PARA Diagnostico
--- =====================================================
-
--- ÍNDICE PRINCIPAL: Campos indexables
-CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_01
-ON [convenio].[Diagnostico] ([estRegistro])
-INCLUDE ([idDiagnostico], [codDiagnostico], [descripcionDiagnostico], [desTipDiagnostico], [codGrupoDiagnostico], [codSistema], [fecCreacionSistema]);
-
--- ÍNDICE PARA codSistema si es indexable
-IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-WHERE TABLE_SCHEMA = 'convenio'
-AND TABLE_NAME = 'Diagnostico'
-AND COLUMN_NAME = 'codSistema'
-AND (DATA_TYPE NOT LIKE '%max%' OR CHARACTER_MAXIMUM_LENGTH < 900))
-BEGIN
-CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_02
-ON [convenio].[Diagnostico] ([estRegistro])
-INCLUDE ([idDiagnostico], [codDiagnostico], [descripcionDiagnostico], [codSistema]);
-PRINT 'Índice IX_Diagnostico_Performance_02 creado exitosamente';
-END
-
--- ÍNDICE PARA JOIN
-CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_03
-ON [convenio].[Diagnostico] ([estRegistro])
-INCLUDE ([idDiagnostico], [codDiagnostico], [descripcionDiagnostico], [desTipDiagnostico], [codGrupoDiagnostico]);
-
--- =====================================================
--- ÍNDICES PARA Mae_Beneficio
--- =====================================================
-
--- ÍNDICE PRINCIPAL: estRegistro indexable, compania en INCLUDE
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Performance_01
-ON [convenio].[Mae_Beneficio] ([estRegistro])
-INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida], [codGrupoBeneficio], [codSistema], [compania]);
-
--- ÍNDICE ALTERNATIVO para búsquedas por beneficio
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Performance_02
-ON [convenio].[Mae_Beneficio] ([estRegistro])
-INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida], [compania]);
-
--- =====================================================
--- ESTRATEGIA ALTERNATIVA: COLUMNAS COMPUTADAS
--- =====================================================
-
--- Crear columnas computadas para indexar campos MAX (si es necesario)
--- Esto permite indexar los primeros N caracteres de campos MAX
-
--- Columna computada para compania (primeros 10 caracteres)
-IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('convenio.Mae_Beneficio') AND name = 'compania_computed')
-BEGIN
-ALTER TABLE [convenio].[Mae_Beneficio]
-ADD [compania_computed] AS (LEFT(COALESCE([compania], ''), 10)) PERSISTED;
-
--- Ahora crear índice en la columna computada
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_CompaniaComputed
-ON [convenio].[Mae_Beneficio] ([compania_computed], [estRegistro])
-INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida]);
-
-PRINT 'Columna computada compania_computed creada e indexada';
-END
-
--- =====================================================
--- ÍNDICES ESPECÍFICOS PARA LA QUERY PROBLEMÁTICA
--- =====================================================
-
--- ÍNDICE ESPECIALIZADO: Para el WHERE con múltiples condiciones
--- Enfocado en estRegistro que es el más selectivo y indexable
-CREATE NONCLUSTERED INDEX IX_Query_Optimization_01
-ON [convenio].[DiagnosticoBeneficio] ([estRegistro])
-INCLUDE ([idDiagnosticoBeneficio], [idDiagnostico], [idBeneficio], [codDiagnostico], [codBeneficio], [codSistema], [fecCreacionsSistema]);
-
-CREATE NONCLUSTERED INDEX IX_Query_Optimization_02
-ON [convenio].[Diagnostico] ([estRegistro])
-INCLUDE ([idDiagnostico], [codDiagnostico], [descripcionDiagnostico], [desTipDiagnostico], [codGrupoDiagnostico], [codSistema], [fecCreacionSistema]);
-
-CREATE NONCLUSTERED INDEX IX_Query_Optimization_03
-ON [convenio].[Mae_Beneficio] ([estRegistro])
-INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida], [codGrupoBeneficio], [codSistema], [compania]);
-
--- =====================================================
--- QUERY OPTIMIZADA PARA ESTRUCTURA ACTUAL
--- =====================================================
-/*
--- VERSIÓN OPTIMIZADA considerando limitaciones de Azure SQL
-
--- OPCIÓN 1: Filtrar por compania usando LIKE si es necesario
-SELECT
-    -- Datos del diagnóstico
-    d.idDiagnostico,
-    d.codDiagnostico,
-    d.descripcionDiagnostico,
-    d.desTipDiagnostico,
-    d.codGrupoDiagnostico,
-    d.estRegistro as estadoRegistroDiagnostico,
-    d.codSistema as codigoSistemaDiagnostico,
-    d.fecCreacionSistema as fechaCreacionDiagnostico,
-
-    -- Datos del beneficio
-    b.idBeneficio,
-    b.codBeneficio,
-    b.descripcion as descripcionBeneficio,
-    b.desResumida as nombreBeneficio,
-    b.codGrupoBeneficio,
-    b.estRegistro as estadoRegistroBeneficio,
-    b.codSistema as codigoSistemaBeneficio,
-    b.compania as companiaBeneficio,
-
-    -- Datos de la relación
-    db.estRegistro as estadoRelacion,
-    db.fecCreacionsSistema as fechaAsociacion
-
-FROM [convenio].[DiagnosticoBeneficio] db
-INNER JOIN [convenio].[Diagnostico] d ON d.idDiagnostico = db.idDiagnostico
-INNER JOIN [convenio].[Mae_Beneficio] b ON db.idBeneficio = b.idBeneficio
-WHERE db.estRegistro = 'V'
-    AND d.estRegistro = 'V'
-    AND (d.codSistema LIKE 'NVS%' OR d.codSistema = 'NVS')
-    AND (b.compania LIKE '20002%' OR b.compania = '20002')
-    AND db.idBeneficio IN ('01JTGQEW5WM4CCMC4M74Q9AZ4T', '01JTGQEW5WV9XKN57PJVHEW6VW', '01JTGQEW5M3X3RQQPDY399WBK9', '01JTGQEW5MMNTHQGB79Z4KACGX')
-ORDER BY
-    CASE WHEN LEN(d.codDiagnostico) <= 100 THEN d.codDiagnostico ELSE LEFT(d.codDiagnostico, 100) END,
-    CASE WHEN LEN(b.codBeneficio) <= 100 THEN b.codBeneficio ELSE LEFT(b.codBeneficio, 100) END
-OFFSET 0 ROWS
-FETCH NEXT 10 ROWS ONLY;
-
--- OPCIÓN 2: Usar tabla temporal para filtros complejos
--- Esta opción puede ser más eficiente para el filtro IN con IDs largos
-
-CREATE TABLE #TempBeneficios (idBeneficio NVARCHAR(MAX));
-INSERT INTO #TempBeneficios VALUES
-('01JTGQEW5WM4CCMC4M74Q9AZ4T'),
-('01JTGQEW5WV9XKN57PJVHEW6VW'),
-('01JTGQEW5M3X3RQQPDY399WBK9'),
-('01JTGQEW5MMNTHQGB79Z4KACGX');
-
-SELECT [mismas columnas que arriba]
-FROM [convenio].[DiagnosticoBeneficio] db
-INNER JOIN #TempBeneficios tb ON db.idBeneficio = tb.idBeneficio
-INNER JOIN [convenio].[Diagnostico] d ON d.idDiagnostico = db.idDiagnostico
-INNER JOIN [convenio].[Mae_Beneficio] b ON db.idBeneficio = b.idBeneficio
-WHERE db.estRegistro = 'V'
-    AND d.estRegistro = 'V'
-    AND d.codSistema LIKE 'NVS%'
-    AND b.compania LIKE '20002%'
-ORDER BY d.codDiagnostico, b.codBeneficio
-OFFSET 0 ROWS
-FETCH NEXT 10 ROWS ONLY;
-
-DROP TABLE #TempBeneficios;
-*/
-
--- =====================================================
--- RECOMENDACIÓN: OPTIMIZAR TIPOS DE DATOS
--- =====================================================
-/*
-PARA MÁXIMO RENDIMIENTO, CONSIDERA EJECUTAR PRIMERO:
-
--- 1. Cambiar tipos de datos problemáticos
-ALTER TABLE [convenio].[Mae_Beneficio] ALTER COLUMN [compania] VARCHAR(20);
-ALTER TABLE [convenio].[Diagnostico] ALTER COLUMN [codSistema] VARCHAR(10);
-
--- 2. Luego crear índices optimizados
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Optimized
-ON [convenio].[Mae_Beneficio] ([compania], [estRegistro])
-INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida]);
-
--- Esto permitirá un rendimiento mucho mejor
-*/
-
--- =====================================================
--- VALIDACIÓN
--- =====================================================
-
--- Verificar índices creados
-SELECT
-t.name AS TableName,
-i.name AS IndexName,
-i.type_desc AS IndexType,
-COL_NAME(ic.object_id, ic.column_id) AS ColumnName,
-ic.is_included_column,
-ic.key_ordinal
-FROM sys.tables t
-INNER JOIN sys.indexes i ON t.object_id = i.object_id
-INNER JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
-INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
-WHERE s.name = 'convenio'
-AND i.name LIKE '%Performance%'
-ORDER BY t.name, i.name, ic.key_ordinal;
-
-PRINT 'Índices compatibles con Azure SQL Database creados exitosamente.';
-PRINT 'RECOMENDACIÓN: Para máximo rendimiento, considera cambiar los tipos de datos NVARCHAR(MAX) a tamaños específicos.';
-PRINT 'Esto permitirá crear índices más eficientes en las columnas clave.';
-
-
-
-/*======================================================
-NÚMERO DE REQUERIMIENTO: Índices compatibles con Azure SQL Database
-NOMBRE ARTEFACTO: Índices de performance para estructura actual
-AUTOR: Sistema                    FECHA CREACIÓN: 2025-06-05
-OBJETIVO: Crear índices compatibles con Azure SQL Database
-considerando las limitaciones de campos NVARCHAR(MAX)
-======================================================*/
-
--- =====================================================
--- IMPORTANTES LIMITACIONES DE AZURE SQL DATABASE:
--- 1. No se pueden indexar columnas NVARCHAR(MAX) o VARCHAR(MAX)
--- 2. Las columnas MAX solo pueden ir en INCLUDE clause
--- 3. Máximo 900 bytes por clave de índice
--- =====================================================
-
--- =====================================================
--- PASO 1: VERIFICAR TIPOS DE DATOS ACTUALES
--- =====================================================
-SELECT
-c.TABLE_NAME,
-c.COLUMN_NAME,
-c.DATA_TYPE,
-c.CHARACTER_MAXIMUM_LENGTH,
-c.IS_NULLABLE
-FROM INFORMATION_SCHEMA.COLUMNS c
-WHERE c.TABLE_SCHEMA = 'convenio'
-AND c.COLUMN_NAME IN ('compania', 'estRegistro', 'codSistema', 'idBeneficio', 'idDiagnostico')
-ORDER BY c.TABLE_NAME, c.COLUMN_NAME;
-
--- =====================================================
--- ÍNDICES PARA DiagnosticoBeneficio
--- =====================================================
-
--- ÍNDICE PRINCIPAL: Solo campos indexables en KEY
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_01
-ON [convenio].[DiagnosticoBeneficio] ([estRegistro])
-INCLUDE ([idDiagnosticoBeneficio], [idDiagnostico], [idBeneficio], [codDiagnostico], [codBeneficio], [codSistema], [fecCreacionsSistema]);
-
--- ÍNDICE PARA FILTRO IN: Solo si idBeneficio no es MAX
--- Verificar primero si idBeneficio es indexable
-IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-WHERE TABLE_SCHEMA = 'convenio'
-AND TABLE_NAME = 'DiagnosticoBeneficio'
-AND COLUMN_NAME = 'idBeneficio'
-AND (DATA_TYPE NOT LIKE '%max%' OR CHARACTER_MAXIMUM_LENGTH < 900))
-BEGIN
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_02
-ON [convenio].[DiagnosticoBeneficio] ([estRegistro])
-INCLUDE ([idDiagnosticoBeneficio], [idDiagnostico], [idBeneficio], [codDiagnostico], [codBeneficio], [codSistema]);
-PRINT 'Índice IX_DiagnosticoBeneficio_Performance_02 creado exitosamente';
-END
-ELSE
-BEGIN
-PRINT 'ADVERTENCIA: idBeneficio es NVARCHAR(MAX), no se puede indexar directamente';
-END
-
--- ÍNDICE PARA JOIN con Diagnostico
-CREATE NONCLUSTERED INDEX IX_DiagnosticoBeneficio_Performance_03
-ON [convenio].[DiagnosticoBeneficio] ([estRegistro])
-INCLUDE ([idDiagnostico], [idBeneficio], [codDiagnostico], [codBeneficio]);
-
--- =====================================================
--- ÍNDICES PARA Diagnostico
--- =====================================================
-
--- ÍNDICE PRINCIPAL: Campos indexables
-CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_01
-ON [convenio].[Diagnostico] ([estRegistro])
-INCLUDE ([idDiagnostico], [codDiagnostico], [descripcionDiagnostico], [desTipDiagnostico], [codGrupoDiagnostico], [codSistema], [fecCreacionSistema]);
-
--- ÍNDICE PARA codSistema si es indexable
-IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-WHERE TABLE_SCHEMA = 'convenio'
-AND TABLE_NAME = 'Diagnostico'
-AND COLUMN_NAME = 'codSistema'
-AND (DATA_TYPE NOT LIKE '%max%' OR CHARACTER_MAXIMUM_LENGTH < 900))
-BEGIN
-CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_02
-ON [convenio].[Diagnostico] ([estRegistro])
-INCLUDE ([idDiagnostico], [codDiagnostico], [descripcionDiagnostico], [codSistema]);
-PRINT 'Índice IX_Diagnostico_Performance_02 creado exitosamente';
-END
-
--- ÍNDICE PARA JOIN
-CREATE NONCLUSTERED INDEX IX_Diagnostico_Performance_03
-ON [convenio].[Diagnostico] ([estRegistro])
-INCLUDE ([idDiagnostico], [codDiagnostico], [descripcionDiagnostico], [desTipDiagnostico], [codGrupoDiagnostico]);
-
--- =====================================================
--- ÍNDICES PARA Mae_Beneficio
--- =====================================================
-
--- ÍNDICE PRINCIPAL: estRegistro indexable, compania en INCLUDE
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Performance_01
-ON [convenio].[Mae_Beneficio] ([estRegistro])
-INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida], [codGrupoBeneficio], [codSistema], [compania]);
-
--- ÍNDICE ALTERNATIVO para búsquedas por beneficio
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Performance_02
-ON [convenio].[Mae_Beneficio] ([estRegistro])
-INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida], [compania]);
-
--- =====================================================
--- ESTRATEGIA ALTERNATIVA: COLUMNAS COMPUTADAS
--- =====================================================
-
--- Crear columnas computadas para indexar campos MAX (si es necesario)
--- Esto permite indexar los primeros N caracteres de campos MAX
-
--- Columna computada para compania (primeros 10 caracteres)
-IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('convenio.Mae_Beneficio') AND name = 'compania_computed')
-BEGIN
-ALTER TABLE [convenio].[Mae_Beneficio]
-ADD [compania_computed] AS (LEFT(COALESCE([compania], ''), 10)) PERSISTED;
-
--- Ahora crear índice en la columna computada
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_CompaniaComputed
-ON [convenio].[Mae_Beneficio] ([compania_computed], [estRegistro])
-INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida]);
-
-PRINT 'Columna computada compania_computed creada e indexada';
-END
-
--- =====================================================
--- ÍNDICES ESPECÍFICOS PARA LA QUERY PROBLEMÁTICA
--- =====================================================
-
--- ÍNDICE ESPECIALIZADO: Para el WHERE con múltiples condiciones
--- Enfocado en estRegistro que es el más selectivo y indexable
-CREATE NONCLUSTERED INDEX IX_Query_Optimization_01
-ON [convenio].[DiagnosticoBeneficio] ([estRegistro])
-INCLUDE ([idDiagnosticoBeneficio], [idDiagnostico], [idBeneficio], [codDiagnostico], [codBeneficio], [codSistema], [fecCreacionsSistema]);
-
-CREATE NONCLUSTERED INDEX IX_Query_Optimization_02
-ON [convenio].[Diagnostico] ([estRegistro])
-INCLUDE ([idDiagnostico], [codDiagnostico], [descripcionDiagnostico], [desTipDiagnostico], [codGrupoDiagnostico], [codSistema], [fecCreacionSistema]);
-
-CREATE NONCLUSTERED INDEX IX_Query_Optimization_03
-ON [convenio].[Mae_Beneficio] ([estRegistro])
-INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida], [codGrupoBeneficio], [codSistema], [compania]);
-
--- =====================================================
--- QUERY OPTIMIZADA PARA ESTRUCTURA ACTUAL
--- =====================================================
-/*
--- VERSIÓN OPTIMIZADA considerando limitaciones de Azure SQL
-
--- OPCIÓN 1: Filtrar por compania usando LIKE si es necesario
-SELECT
-    -- Datos del diagnóstico
-    d.idDiagnostico,
-    d.codDiagnostico,
-    d.descripcionDiagnostico,
-    d.desTipDiagnostico,
-    d.codGrupoDiagnostico,
-    d.estRegistro as estadoRegistroDiagnostico,
-    d.codSistema as codigoSistemaDiagnostico,
-    d.fecCreacionSistema as fechaCreacionDiagnostico,
-
-    -- Datos del beneficio
-    b.idBeneficio,
-    b.codBeneficio,
-    b.descripcion as descripcionBeneficio,
-    b.desResumida as nombreBeneficio,
-    b.codGrupoBeneficio,
-    b.estRegistro as estadoRegistroBeneficio,
-    b.codSistema as codigoSistemaBeneficio,
-    b.compania as companiaBeneficio,
-
-    -- Datos de la relación
-    db.estRegistro as estadoRelacion,
-    db.fecCreacionsSistema as fechaAsociacion
-
-FROM [convenio].[DiagnosticoBeneficio] db
-INNER JOIN [convenio].[Diagnostico] d ON d.idDiagnostico = db.idDiagnostico
-INNER JOIN [convenio].[Mae_Beneficio] b ON db.idBeneficio = b.idBeneficio
-WHERE db.estRegistro = 'V'
-    AND d.estRegistro = 'V'
-    AND (d.codSistema LIKE 'NVS%' OR d.codSistema = 'NVS')
-    AND (b.compania LIKE '20002%' OR b.compania = '20002')
-    AND db.idBeneficio IN ('01JTGQEW5WM4CCMC4M74Q9AZ4T', '01JTGQEW5WV9XKN57PJVHEW6VW', '01JTGQEW5M3X3RQQPDY399WBK9', '01JTGQEW5MMNTHQGB79Z4KACGX')
-ORDER BY
-    CASE WHEN LEN(d.codDiagnostico) <= 100 THEN d.codDiagnostico ELSE LEFT(d.codDiagnostico, 100) END,
-    CASE WHEN LEN(b.codBeneficio) <= 100 THEN b.codBeneficio ELSE LEFT(b.codBeneficio, 100) END
-OFFSET 0 ROWS
-FETCH NEXT 10 ROWS ONLY;
-
--- OPCIÓN 2: Usar tabla temporal para filtros complejos
--- Esta opción puede ser más eficiente para el filtro IN con IDs largos
-
-CREATE TABLE #TempBeneficios (idBeneficio NVARCHAR(MAX));
-INSERT INTO #TempBeneficios VALUES
-('01JTGQEW5WM4CCMC4M74Q9AZ4T'),
-('01JTGQEW5WV9XKN57PJVHEW6VW'),
-('01JTGQEW5M3X3RQQPDY399WBK9'),
-('01JTGQEW5MMNTHQGB79Z4KACGX');
-
-SELECT [mismas columnas que arriba]
-FROM [convenio].[DiagnosticoBeneficio] db
-INNER JOIN #TempBeneficios tb ON db.idBeneficio = tb.idBeneficio
-INNER JOIN [convenio].[Diagnostico] d ON d.idDiagnostico = db.idDiagnostico
-INNER JOIN [convenio].[Mae_Beneficio] b ON db.idBeneficio = b.idBeneficio
-WHERE db.estRegistro = 'V'
-    AND d.estRegistro = 'V'
-    AND d.codSistema LIKE 'NVS%'
-    AND b.compania LIKE '20002%'
-ORDER BY d.codDiagnostico, b.codBeneficio
-OFFSET 0 ROWS
-FETCH NEXT 10 ROWS ONLY;
-
-DROP TABLE #TempBeneficios;
-*/
-
--- =====================================================
--- RECOMENDACIÓN: OPTIMIZAR TIPOS DE DATOS
--- =====================================================
-/*
-PARA MÁXIMO RENDIMIENTO, CONSIDERA EJECUTAR PRIMERO:
-
--- 1. Cambiar tipos de datos problemáticos
-ALTER TABLE [convenio].[Mae_Beneficio] ALTER COLUMN [compania] VARCHAR(20);
-ALTER TABLE [convenio].[Diagnostico] ALTER COLUMN [codSistema] VARCHAR(10);
-
--- 2. Luego crear índices optimizados
-CREATE NONCLUSTERED INDEX IX_Mae_Beneficio_Optimized
-ON [convenio].[Mae_Beneficio] ([compania], [estRegistro])
-INCLUDE ([idBeneficio], [codBeneficio], [descripcion], [desResumida]);
-
--- Esto permitirá un rendimiento mucho mejor
-*/
-
--- =====================================================
--- VALIDACIÓN
--- =====================================================
-
--- Verificar índices creados
-SELECT
-t.name AS TableName,
-i.name AS IndexName,
-i.type_desc AS IndexType,
-COL_NAME(ic.object_id, ic.column_id) AS ColumnName,
-ic.is_included_column,
-ic.key_ordinal
-FROM sys.tables t
-INNER JOIN sys.indexes i ON t.object_id = i.object_id
-INNER JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
-INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
-WHERE s.name = 'convenio'
-AND i.name LIKE '%Performance%'
-ORDER BY t.name, i.name, ic.key_ordinal;
-
-PRINT 'Índices compatibles con Azure SQL Database creados exitosamente.';
-PRINT 'RECOMENDACIÓN: Para máximo rendimiento, considera cambiar los tipos de datos NVARCHAR(MAX) a tamaños específicos.';
-PRINT 'Esto permitirá crear índices más eficientes en las columnas clave.';
-
-db-srv-eu1-datos-desa-01.database.windows.net
-db-sql-eu1-datos-desa01
