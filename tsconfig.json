@@ -6,6 +6,7 @@ curl --location 'https://apim-eu1-border-service-desa.azure-api.net/ot-configSer
 
 --data ''
  
+
 -- =====================================================
 -- SCRIPT PARA RECREAR TODAS LAS TABLAS CON ULID
 -- Y TIP_ROL CON IDTIPOROL VARCHAR(50)
@@ -17,20 +18,20 @@ curl --location 'https://apim-eu1-border-service-desa.azure-api.net/ot-configSer
 -- =====================================================
 
 -- Eliminar tablas de relación primero
-DROP TABLE IF EXISTS Mae_SucursalCompaniaSeguro;
-DROP TABLE IF EXISTS Tbt_PersonaCompaniaSeguro;
-DROP TABLE IF EXISTS Tbt_PersonaRol;
-DROP TABLE IF EXISTS Mae_Sucursal;
-DROP TABLE IF EXISTS Mae_Proveedor;
+DROP TABLE IF EXISTS [persona].[Mae_SucursalCompaniaSeguro];
+DROP TABLE IF EXISTS [persona].[Tbt_PersonaCompaniaSeguro];
+DROP TABLE IF EXISTS [persona].[Tbt_PersonaRol];
+DROP TABLE IF EXISTS [persona].[Mae_Sucursal];
+DROP TABLE IF EXISTS [persona].[Mae_Proveedor];
 
 -- Eliminar tablas de catálogo
-DROP TABLE IF EXISTS Mae_CompaniaSeguros;
-DROP TABLE IF EXISTS Mae_PersonaJuridica;
-DROP TABLE IF EXISTS Tip_TipoProveedor;
-DROP TABLE IF EXISTS Tip_Rol;
+DROP TABLE IF EXISTS [persona].[Mae_CompaniaSeguros];
+DROP TABLE IF EXISTS [persona].[Mae_PersonaJuridica];
+DROP TABLE IF EXISTS [persona].[Tip_TipoProveedor];
+DROP TABLE IF EXISTS [persona].[Tip_Rol];
 
 -- Eliminar tabla base
-DROP TABLE IF EXISTS Mae_Persona;
+DROP TABLE IF EXISTS [persona].[Mae_Persona];
 
 -- =====================================================
 -- PASO 2: RECREAR TABLAS CON ULID (VARCHAR(26))
@@ -42,7 +43,7 @@ SET QUOTED_IDENTIFIER ON
 GO
 
 -- TABLA BASE: Mae_Persona
-CREATE TABLE Mae_Persona
+CREATE TABLE [persona].[Mae_Persona]
 (
     IdPersona                    VARCHAR(26)         NOT NULL    CONSTRAINT PK_Mae_Persona PRIMARY KEY,
     TipoPersona                  CHAR(1)             NOT NULL,   -- J: Jurídica, N: Natural
@@ -66,10 +67,10 @@ CREATE TABLE Mae_Persona
 GO
 
 -- TABLA: Mae_PersonaJuridica
-CREATE TABLE Mae_PersonaJuridica
+CREATE TABLE [persona].[Mae_PersonaJuridica]
 (
     IdPersona                      VARCHAR(26)         NOT NULL    CONSTRAINT PK_Mae_PersonaJuridica PRIMARY KEY
-        CONSTRAINT FK_Mae_PersonaJuridica_Mae_Persona REFERENCES Mae_Persona,
+        CONSTRAINT FK_Mae_PersonaJuridica_Mae_Persona REFERENCES [persona].[Mae_Persona],
     FechaAniversario               DATE                NULL,
     NombreRazonSocial              VARCHAR(70)         NOT NULL,
     NombreRazonSocialAbreviada     VARCHAR(50)         NULL,
@@ -88,11 +89,11 @@ CREATE TABLE Mae_PersonaJuridica
 GO
 
 -- TABLA: Mae_CompaniaSeguros
-CREATE TABLE Mae_CompaniaSeguros
+CREATE TABLE [persona].[Mae_CompaniaSeguros]
 (
     IdCompaniaSeguros              VARCHAR(26)         NOT NULL    CONSTRAINT PK_Mae_CompaniaSeguros PRIMARY KEY,
     IdPersonaJuridica              VARCHAR(26)         NOT NULL    
-        CONSTRAINT FK_Mae_CompaniaSeguros_Mae_PersonaJuridica REFERENCES Mae_PersonaJuridica,
+        CONSTRAINT FK_Mae_CompaniaSeguros_Mae_PersonaJuridica REFERENCES [persona].[Mae_PersonaJuridica],
     CodigoIAFA                     VARCHAR(5)          NOT NULL,
     DescripcionCompaniaSeguros     VARCHAR(40)         NOT NULL,
     EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
@@ -109,7 +110,7 @@ CREATE TABLE Mae_CompaniaSeguros
 GO
 
 -- TABLA: Tip_Rol (CON IDTIPOROL VARCHAR(50))
-CREATE TABLE Tip_Rol
+CREATE TABLE [persona].[Tip_Rol]
 (
     IdTipoRol                      VARCHAR(50)         NOT NULL    CONSTRAINT PK_Tip_Rol PRIMARY KEY,
     CodigoLval                     VARCHAR(15)         NULL,
@@ -128,7 +129,7 @@ CREATE TABLE Tip_Rol
 GO
 
 -- TABLA: Tip_TipoProveedor
-CREATE TABLE Tip_TipoProveedor
+CREATE TABLE [persona].[Tip_TipoProveedor]
 (
     IdTipoProveedor                VARCHAR(26)         NOT NULL    CONSTRAINT PK_Tip_TipoProveedor PRIMARY KEY,
     TipoProveedor                  NUMERIC(2,0)        NOT NULL,
@@ -147,13 +148,13 @@ CREATE TABLE Tip_TipoProveedor
 GO
 
 -- TABLA: Mae_Proveedor
-CREATE TABLE Mae_Proveedor
+CREATE TABLE [persona].[Mae_Proveedor]
 (
     IdProveedor                    VARCHAR(26)         NOT NULL    CONSTRAINT PK_Mae_Proveedor PRIMARY KEY,
     IdPersona                      VARCHAR(26)         NOT NULL    
-        CONSTRAINT FK_Mae_Proveedor_Mae_Persona REFERENCES Mae_Persona,
+        CONSTRAINT FK_Mae_Proveedor_Mae_Persona REFERENCES [persona].[Mae_Persona],
     IdTipoProveedor                VARCHAR(26)         NOT NULL    
-        CONSTRAINT FK_Mae_Proveedor_Tip_TipoProveedor REFERENCES Tip_TipoProveedor,
+        CONSTRAINT FK_Mae_Proveedor_Tip_TipoProveedor REFERENCES [persona].[Tip_TipoProveedor],
     CodigoProveedor                VARCHAR(10)         NOT NULL,
     TipoProveedor                  NUMERIC(2,0)        NOT NULL,
     IndicadorCertificacion         VARCHAR(1)          NULL,
@@ -172,11 +173,11 @@ CREATE TABLE Mae_Proveedor
 GO
 
 -- TABLA: Mae_Sucursal
-CREATE TABLE Mae_Sucursal
+CREATE TABLE [persona].[Mae_Sucursal]
 (
     IdSucursal                     VARCHAR(26)         NOT NULL    CONSTRAINT PK_Mae_Sucursal PRIMARY KEY,
     IdProveedor                    VARCHAR(26)         NOT NULL    
-        CONSTRAINT FK_Mae_Sucursal_Mae_Proveedor REFERENCES Mae_Proveedor,
+        CONSTRAINT FK_Mae_Sucursal_Mae_Proveedor REFERENCES [persona].[Mae_Proveedor],
     CodigoProveedor                VARCHAR(10)         NOT NULL,
     NumeroSucursalProveedor        VARCHAR(4)          NOT NULL,
     DescripcionSucursal            VARCHAR(150)        NOT NULL,
@@ -205,13 +206,13 @@ CREATE TABLE Mae_Sucursal
 GO
 
 -- TABLA: Tbt_PersonaRol
-CREATE TABLE Tbt_PersonaRol
+CREATE TABLE [persona].[Tbt_PersonaRol]
 (
     IdPersonaRol                   VARCHAR(26)         NOT NULL    CONSTRAINT PK_Tbt_PersonaRol PRIMARY KEY,
     IdPersona                      VARCHAR(26)         NOT NULL    
-        CONSTRAINT FK_Tbt_PersonaRol_Mae_Persona REFERENCES Mae_Persona,
+        CONSTRAINT FK_Tbt_PersonaRol_Mae_Persona REFERENCES [persona].[Mae_Persona],
     IdTipoRol                      VARCHAR(50)         NOT NULL    
-        CONSTRAINT FK_Tbt_PersonaRol_Tip_Rol REFERENCES Tip_Rol,
+        CONSTRAINT FK_Tbt_PersonaRol_Tip_Rol REFERENCES [persona].[Tip_Rol],
     EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
     CodigoUsuarioCreador           VARCHAR(15)         NOT NULL,
     FechaCreacion                  DATETIME            NOT NULL,
@@ -226,13 +227,13 @@ CREATE TABLE Tbt_PersonaRol
 GO
 
 -- TABLA: Tbt_PersonaCompaniaSeguro
-CREATE TABLE Tbt_PersonaCompaniaSeguro
+CREATE TABLE [persona].[Tbt_PersonaCompaniaSeguro]
 (
     IdPersonaCompaniaSeguro        VARCHAR(26)         NOT NULL    CONSTRAINT PK_Tbt_PersonaCompaniaSeguro PRIMARY KEY,
     IdPersona                      VARCHAR(26)         NOT NULL    
-        CONSTRAINT FK_Tbt_PersonaCompaniaSeguro_Mae_Persona REFERENCES Mae_Persona,
+        CONSTRAINT FK_Tbt_PersonaCompaniaSeguro_Mae_Persona REFERENCES [persona].[Mae_Persona],
     IdCompaniaSeguro               VARCHAR(26)         NOT NULL    
-        CONSTRAINT FK_Tbt_PersonaCompaniaSeguro_Mae_CompaniaSeguros REFERENCES Mae_CompaniaSeguros,
+        CONSTRAINT FK_Tbt_PersonaCompaniaSeguro_Mae_CompaniaSeguros REFERENCES [persona].[Mae_CompaniaSeguros],
     EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
     CodigoUsuarioCreador           VARCHAR(15)         NOT NULL,
     FechaCreacion                  DATETIME            NOT NULL,
@@ -247,13 +248,13 @@ CREATE TABLE Tbt_PersonaCompaniaSeguro
 GO
 
 -- TABLA: Mae_SucursalCompaniaSeguro
-CREATE TABLE Mae_SucursalCompaniaSeguro
+CREATE TABLE [persona].[Mae_SucursalCompaniaSeguro]
 (
     IdSucursalCompaniaSeguro       VARCHAR(26)         NOT NULL    CONSTRAINT PK_Mae_SucursalCompaniaSeguro PRIMARY KEY,
     IdSucursal                     VARCHAR(26)         NOT NULL    
-        CONSTRAINT FK_Mae_SucursalCompaniaSeguro_Mae_Sucursal REFERENCES Mae_Sucursal,
+        CONSTRAINT FK_Mae_SucursalCompaniaSeguro_Mae_Sucursal REFERENCES [persona].[Mae_Sucursal],
     IdCompaniaSeguro               VARCHAR(26)         NOT NULL    
-        CONSTRAINT FK_Mae_SucursalCompaniaSeguro_Mae_CompaniaSeguros REFERENCES Mae_CompaniaSeguros,
+        CONSTRAINT FK_Mae_SucursalCompaniaSeguro_Mae_CompaniaSeguros REFERENCES [persona].[Mae_CompaniaSeguros],
     CodigoProveedor                VARCHAR(10)         NOT NULL,
     NumeroSucursalProveedor        VARCHAR(10)         NOT NULL,
     EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
@@ -272,10 +273,10 @@ GO
 -- =====================================================
 -- PASO 3: CREAR ÍNDICES PARA OPTIMIZAR BÚSQUEDAS
 -- =====================================================
-CREATE NONCLUSTERED INDEX IX_Mae_Persona_01 ON Mae_Persona(NumeroDocumento, CodigoTipoDocumento);
-CREATE NONCLUSTERED INDEX IX_Mae_Proveedor_01 ON Mae_Proveedor(CodigoProveedor);
-CREATE NONCLUSTERED INDEX IX_Mae_Sucursal_01 ON Mae_Sucursal(CodigoProveedor, NumeroSucursalProveedor);
-CREATE NONCLUSTERED INDEX IX_Mae_PersonaJuridica_01 ON Mae_PersonaJuridica(NombreRazonSocial);
+CREATE NONCLUSTERED INDEX IX_Mae_Persona_01 ON [persona].[Mae_Persona](NumeroDocumento, CodigoTipoDocumento);
+CREATE NONCLUSTERED INDEX IX_Mae_Proveedor_01 ON [persona].[Mae_Proveedor](CodigoProveedor);
+CREATE NONCLUSTERED INDEX IX_Mae_Sucursal_01 ON [persona].[Mae_Sucursal](CodigoProveedor, NumeroSucursalProveedor);
+CREATE NONCLUSTERED INDEX IX_Mae_PersonaJuridica_01 ON [persona].[Mae_PersonaJuridica](NombreRazonSocial);
 
 -- =====================================================
 -- PASO 4: VERIFICACIÓN FINAL
@@ -294,6 +295,7 @@ WHERE TABLE_NAME IN (
     'Tip_Rol', 'Tip_TipoProveedor', 'Mae_Proveedor', 'Mae_Sucursal',
     'Tbt_PersonaRol', 'Tbt_PersonaCompaniaSeguro', 'Mae_SucursalCompaniaSeguro'
 )
+AND TABLE_SCHEMA = 'persona'
 ORDER BY TABLE_NAME, ORDINAL_POSITION;
 
 -- Verificar todas las Foreign Keys recreadas
