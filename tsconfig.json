@@ -943,3 +943,47 @@ INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
 WHERE c.object_id = OBJECT_ID('Tbt_PersonaRol') 
     AND c.name = 'IdTipoRol';
 */
+
+-- Eliminar las tablas existentes en el esquema personas
+DROP TABLE IF EXISTS personas.Tbt_PersonaRol;
+GO
+DROP TABLE IF EXISTS personas.Tip_Rol;
+GO
+
+-- Recrear la tabla Tip_Rol en el esquema personas con IdTipoRol VARCHAR(30)
+CREATE TABLE personas.Tip_Rol (
+    IdTipoRol                      VARCHAR(30)         NOT NULL    CONSTRAINT PK_Tip_Rol PRIMARY KEY,
+    CodigoLval                     VARCHAR(15)         NULL,
+    DescripcionRol                 VARCHAR(50)         NOT NULL,
+    EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
+    CodigoUsuarioCreador           VARCHAR(15)         NOT NULL,
+    FechaCreacion                  DATETIME            NOT NULL,
+    CodigoUsuarioModificador       VARCHAR(15)         NULL,
+    FechaModificacion              DATETIME            NULL,
+    -- Campos de auditoría adicionales
+    CodigoUsuarioCreadorSistema    VARCHAR(15)         NOT NULL,
+    FechaCreacionSistema           DATETIME            NOT NULL,
+    CodigoUsuarioUpdateSistema     VARCHAR(15)         NULL,
+    FechaUpdateSistema             DATETIME            NULL
+);
+GO
+
+-- Recrear la tabla Tbt_PersonaRol en el esquema personas con IdTipoRol VARCHAR(30)
+CREATE TABLE personas.Tbt_PersonaRol (
+    IdPersonaRol                   UNIQUEIDENTIFIER    NOT NULL    CONSTRAINT PK_Tbt_PersonaRol PRIMARY KEY,
+    IdPersona                      UNIQUEIDENTIFIER    NOT NULL    
+        CONSTRAINT FK_Tbt_PersonaRol_Mae_Persona REFERENCES personas.Mae_Persona,
+    IdTipoRol                      VARCHAR(30)         NOT NULL    
+        CONSTRAINT FK_Tbt_PersonaRol_Tip_Rol REFERENCES personas.Tip_Rol,
+    EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
+    CodigoUsuarioCreador           VARCHAR(15)         NOT NULL,
+    FechaCreacion                  DATETIME            NOT NULL,
+    CodigoUsuarioModificador       VARCHAR(15)         NULL,
+    FechaModificacion              DATETIME            NULL,
+    -- Campos de auditoría adicionales
+    CodigoUsuarioCreadorSistema    VARCHAR(15)         NOT NULL,
+    FechaCreacionSistema           DATETIME            NOT NULL,
+    CodigoUsuarioUpdateSistema     VARCHAR(15)         NULL,
+    FechaUpdateSistema             DATETIME            NULL
+);
+GO
