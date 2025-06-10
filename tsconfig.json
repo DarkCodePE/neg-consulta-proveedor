@@ -987,3 +987,11 @@ CREATE TABLE personas.Tbt_PersonaRol (
     FechaUpdateSistema             DATETIME            NULL
 );
 GO
+curl --location 'https://apim-eu1-border-service-desa.azure-api.net/ot-configServer/config/srv-ms-sm-ne-ods-consultaProveedor/development?files=application.yml' \
+
+--header 'x-api-key: df584e6f4dcc46e183a100d16da13c54' \
+
+--header 'ocp-apim-subscription-key: df584e6f4dcc46e183a100d16da13c54' \
+
+--data ''
+ 
