@@ -886,3 +886,60 @@ ALTER TABLE [persona].[Tip_Rol] ADD  CONSTRAINT [PK_Tip_Rol] PRIMARY KEY CLUSTER
 	[IdTipoRol] ASC
 )WITH (STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 GO
+
+
+
+-- Paso 1: Eliminar la Foreign Key en Tbt_PersonaRol
+ALTER TABLE Tbt_PersonaRol
+DROP CONSTRAINT FK_Tbt_PersonaRol_Tip_Rol;
+GO
+
+-- Paso 2: Eliminar la Primary Key en Tip_Rol
+ALTER TABLE Tip_Rol
+DROP CONSTRAINT PK_Tip_Rol;
+GO
+
+-- Paso 3: Cambiar el tipo de dato en la tabla principal Tip_Rol
+ALTER TABLE Tip_Rol
+ALTER COLUMN IdTipoRol VARCHAR(30) NOT NULL;
+GO
+
+-- Paso 4: Recrear la Primary Key en Tip_Rol
+ALTER TABLE Tip_Rol
+ADD CONSTRAINT PK_Tip_Rol PRIMARY KEY (IdTipoRol);
+GO
+
+-- Paso 5: Cambiar el tipo de dato en la tabla relacionada Tbt_PersonaRol
+ALTER TABLE Tbt_PersonaRol
+ALTER COLUMN IdTipoRol VARCHAR(30) NOT NULL;
+GO
+
+-- Paso 6: Recrear la Foreign Key en Tbt_PersonaRol
+ALTER TABLE Tbt_PersonaRol
+ADD CONSTRAINT FK_Tbt_PersonaRol_Tip_Rol 
+FOREIGN KEY (IdTipoRol) REFERENCES Tip_Rol(IdTipoRol);
+GO
+
+-- Verificar los cambios
+-- Puedes ejecutar estos comandos para confirmar que los cambios se aplicaron correctamente:
+/*
+SELECT 
+    c.name AS ColumnName,
+    t.name AS DataType,
+    c.max_length,
+    c.is_nullable
+FROM sys.columns c
+INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+WHERE c.object_id = OBJECT_ID('Tip_Rol') 
+    AND c.name = 'IdTipoRol';
+
+SELECT 
+    c.name AS ColumnName,
+    t.name AS DataType,
+    c.max_length,
+    c.is_nullable
+FROM sys.columns c
+INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+WHERE c.object_id = OBJECT_ID('Tbt_PersonaRol') 
+    AND c.name = 'IdTipoRol';
+*/
