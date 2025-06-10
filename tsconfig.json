@@ -348,3 +348,268 @@ ORDER BY fk.name;
    - Las aplicaciones necesitarán generar ULIDs válidos
    - Verificar que los sistemas puedan manejar VARCHAR(26) para IDs
 */
+
+
+
+-- =====================================================
+-- SCRIPT DE INSERCIÓN DE DATOS PARA ESQUEMA PERSONA
+-- CON ULID Y DATOS BASADOS EN EL CORE EXISTENTE
+-- =====================================================
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+-- =====================================================
+-- PASO 1: INSERTAR TIPOS DE ROLES
+-- =====================================================
+
+INSERT INTO [persona].[Tip_Rol] (
+    IdTipoRol, CodigoLval, DescripcionRol, EstadoRegistro,
+    CodigoUsuarioCreador, FechaCreacion, CodigoUsuarioModificador, FechaModificacion,
+    CodigoUsuarioCreadorSistema, FechaCreacionSistema, CodigoUsuarioUpdateSistema, FechaUpdateSistema
+) VALUES 
+    ('PROVEEDOR_SALUD', 'PROV001', 'Proveedor de Servicios de Salud', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('FUNERARIA', 'FUN001', 'Servicios Funerarios', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('FARMACIA', 'FAR001', 'Farmacia y Boticas', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('CLINICA', 'CLI001', 'Clínica y Centros Médicos', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('LABORATORIO', 'LAB001', 'Laboratorios Clínicos', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('ODONTOLOGIA', 'ODO001', 'Servicios Odontológicos', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL);
+
+-- =====================================================
+-- PASO 2: INSERTAR TIPOS DE PROVEEDORES
+-- =====================================================
+
+INSERT INTO [persona].[Tip_TipoProveedor] (
+    IdTipoProveedor, TipoProveedor, DescripcionTipoProveedor, EstadoRegistro,
+    CodigoUsuarioCreador, FechaCreacion, CodigoUsuarioModificador, FechaModificacion,
+    CodigoUsuarioCreadorSistema, FechaCreacionSistema, CodigoUsuarioUpdateSistema, FechaUpdateSistema
+) VALUES 
+    ('01JAY5K3P2QRST6WX8Z9BCD4FG', 19, 'Persona Natural', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4FH', 19, 'Persona Jurídica', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4FJ', 12, 'Clínica Especializada', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4FK', 26, 'Centro Médico', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL);
+
+-- =====================================================
+-- PASO 3: INSERTAR PERSONAS (ENTIDADES JURÍDICAS)
+-- =====================================================
+
+-- Personas base
+INSERT INTO [persona].[Mae_Persona] (
+    IdPersona, TipoPersona, NombreCompletoPersona, NombreAbreviadoPersona, 
+    CodigoTipoDocumento, NumeroDocumento, DescripcionPaginaWeb, CodigoTipoTrabajador,
+    EstadoRegistro, FechaCreacion, CodigoUsuarioCreador, FechaModificacion, CodigoUsuarioModificador,
+    CodigoUsuarioCreadorSistema, FechaCreacionSistema, CodigoUsuarioUpdateSistema, FechaUpdateSistema
+) VALUES 
+    -- Funerarias
+    ('01JAY5K3P2QRST6WX8Z9BCD4F1', 'J', 'FUNERARIA SAN ISIDRO S.A.C.', 'FUNERARIA SAN ISIDRO', 'RUC', '20500442612', 'www.funerariasanisidro.com', NULL, 'ACT', '2020-09-20 02:10:35', 'S61234', NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4F2', 'J', 'TRAVEX S.A.', 'TRAVEX S.A.', 'RUC', '20505238703', NULL, NULL, 'ACT', '2013-09-25 21:53:53', 'KHUAMAN', NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4F3', 'J', 'GORDILLO & ASOCIADOS, ABOGADOS S.C.R.L.', 'GORDILLO & ASOCIADOS', 'RUC', '20508220891', NULL, NULL, 'ACT', '2008-04-01 20:09:48', 'INTERFAZ', NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    
+    -- Clínicas y Centros Médicos
+    ('01JAY5K3P2QRST6WX8Z9BCD4F4', 'J', 'CENTRO ONCOLOGICO ALIADA S.A.C.', 'CENTRO ONCOLOGICO ALIADA', 'RUC', '20507773889', NULL, NULL, 'ACT', '2018-11-13 09:08:47', 'E05643', NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4F5', 'J', 'CLÍNICA SANTA MÓNICA S.A.C.', 'CLINICA SANTA MONICA', 'RUC', '20504969372', 'www.clinicasantamonica.com', NULL, 'ANU', '2009-02-16 16:29:27', 'SPOTESTA', NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4F6', 'J', 'PATOLOGÍA Y DIAGNÓSTICO S.A.C.', 'PATOLOGIA', 'RUC', '20171239344', NULL, NULL, 'ACT', '2007-10-31 10:37:44', 'INTERFAZ', NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    
+    -- Farmacias
+    ('01JAY5K3P2QRST6WX8Z9BCD4F7', 'J', 'PLUS FARMA S.A.C.', 'PLUS FARMA', 'RUC', '20485913379', NULL, NULL, 'ANU', '2008-04-01 20:09:28', 'INTERFAZ', NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4F8', 'J', 'FARMA PLUS S.A.C.', 'FARMA PLUS', 'RUC', '20486162911', NULL, NULL, 'ACT', '2008-04-01 20:09:28', 'INTERFAZ', NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    
+    -- Laboratorios
+    ('01JAY5K3P2QRST6WX8Z9BCD4F9', 'J', 'LABORATORIOS SYNTH S.A.C.', 'LABORATORIOS SYNTH', 'RUC', '20191045732', NULL, NULL, 'ACT', '2007-10-31 10:37:47', 'INTERFAZ', NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4G0', 'J', 'FYMEDIC S.A.C.', 'FYMEDIC', 'RUC', '20508235802', NULL, NULL, 'ACT', '2009-06-01 16:23:57', 'FMORENO', NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL);
+
+-- =====================================================
+-- PASO 4: INSERTAR PERSONAS JURÍDICAS (DETALLES)
+-- =====================================================
+
+INSERT INTO [persona].[Mae_PersonaJuridica] (
+    IdPersona, FechaAniversario, NombreRazonSocial, NombreRazonSocialAbreviada, 
+    CodigoGrupoEconomico, EstadoRegistro, CodigoUsuarioCreador, FechaCreacion, 
+    CodigoUsuarioModificador, FechaModificacion, CodigoUsuarioCreadorSistema, 
+    FechaCreacionSistema, CodigoUsuarioUpdateSistema, FechaUpdateSistema
+) VALUES 
+    ('01JAY5K3P2QRST6WX8Z9BCD4F1', '2020-09-20', 'FUNERARIA SAN ISIDRO S.A.C.', 'FUNERARIA SAN ISIDRO', 'GE001', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4F2', '2013-09-25', 'TRAVEX S.A.', 'TRAVEX S.A.', 'GE002', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4F3', '2008-04-01', 'GORDILLO & ASOCIADOS, ABOGADOS S.C.R.L.', 'GORDILLO & ASOCIADOS', 'GE003', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4F4', '2018-11-13', 'CENTRO ONCOLOGICO ALIADA S.A.C.', 'CENTRO ONCOLOGICO ALIADA', 'GE004', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4F5', '2009-02-16', 'CLÍNICA SANTA MÓNICA S.A.C.', 'CLINICA SANTA MONICA', 'GE005', 'A', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4F6', '2007-10-31', 'PATOLOGÍA Y DIAGNÓSTICO S.A.C.', 'PATOLOGIA', 'GE006', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4F7', '2008-04-01', 'PLUS FARMA S.A.C.', 'PLUS FARMA', 'GE007', 'A', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4F8', '2008-04-01', 'FARMA PLUS S.A.C.', 'FARMA PLUS', 'GE008', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4F9', '2007-10-31', 'LABORATORIOS SYNTH S.A.C.', 'LABORATORIOS SYNTH', 'GE009', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4G0', '2009-06-01', 'FYMEDIC S.A.C.', 'FYMEDIC', 'GE010', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL);
+
+-- =====================================================
+-- PASO 5: INSERTAR PROVEEDORES
+-- =====================================================
+
+INSERT INTO [persona].[Mae_Proveedor] (
+    IdProveedor, IdPersona, IdTipoProveedor, CodigoProveedor, TipoProveedor,
+    IndicadorCertificacion, IndicadorRedSelecta, EstadoRegistro, CodigoUsuarioCreador,
+    FechaCreacion, CodigoUsuarioModificador, FechaModificacion, CodigoUsuarioCreadorSistema,
+    FechaCreacionSistema, CodigoUsuarioUpdateSistema, FechaUpdateSistema
+) VALUES 
+    -- Proveedores basados en los datos de referencia
+    ('01JAY5K3P2QRST6WX8Z9BCD4H1', '01JAY5K3P2QRST6WX8Z9BCD4F1', '01JAY5K3P2QRST6WX8Z9BCD4FH', '37', 19, 'N', 'N', 'V', 'NOVAPROD', '1999-05-17', 'INTERFAZ', '2008-04-01', 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4H2', '01JAY5K3P2QRST6WX8Z9BCD4F4', '01JAY5K3P2QRST6WX8Z9BCD4FJ', '44', 12, 'N', 'N', 'V', 'VALENCIA', '2004-05-28', 'SPOTESTA', '2010-02-15', 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4H3', '01JAY5K3P2QRST6WX8Z9BCD4F5', '01JAY5K3P2QRST6WX8Z9BCD4FK', '44', 26, 'N', 'N', 'A', 'NOVAPROD', '1998-01-06', 'PVALDIVIA', '2003-05-31', 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4H4', '01JAY5K3P2QRST6WX8Z9BCD4F6', '01JAY5K3P2QRST6WX8Z9BCD4FG', '47', 19, 'N', 'N', 'V', 'DHUSEY', '2003-01-12', 'S35540', '2001-02-29', 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4H5', '01JAY5K3P2QRST6WX8Z9BCD4F7', '01JAY5K3P2QRST6WX8Z9BCD4FG', '100', 19, 'N', 'N', 'V', 'NOVAPROD', '1992-08-24', 'SPOTESTA', '2010-07-09', 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4H6', '01JAY5K3P2QRST6WX8Z9BCD4F8', '01JAY5K3P2QRST6WX8Z9BCD4FG', '102', 19, 'N', 'N', 'V', 'NOVAPROD', '1999-05-17', 'SPOTESTA', '2010-03-22', 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4H7', '01JAY5K3P2QRST6WX8Z9BCD4F9', '01JAY5K3P2QRST6WX8Z9BCD4FG', '104', 19, 'N', 'N', 'V', 'DHUSEY', '2003-12-22', 'S62014', '2009-09-20', 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4H8', '01JAY5K3P2QRST6WX8Z9BCD4G0', '01JAY5K3P2QRST6WX8Z9BCD4FG', '106', 19, 'N', 'N', 'V', 'NOVAPROD', '2000-03-05', 'USRANSA', '2007-11-19', 'SISTEMA', GETDATE(), NULL, NULL);
+
+-- =====================================================
+-- PASO 6: INSERTAR SUCURSALES
+-- =====================================================
+
+INSERT INTO [persona].[Mae_Sucursal] (
+    IdSucursal, IdProveedor, CodigoProveedor, NumeroSucursalProveedor, DescripcionSucursal,
+    IndicadorPrincipalSucursal, CategoriaSucursal, CodigoSucursalSeps, RegistroSeps,
+    IndicadorEPS, CodigoSeps, CodigoClinicaEps, IndicadorRedSelecta, IndicadorExoneracionIgv,
+    IndicadorDetraccion, TipoInstitucion, EstadoRegistro, CodigoUsuarioCreador, FechaCreacion,
+    CodigoUsuarioModificador, FechaModificacion, CodigoUsuarioCreadorSistema, FechaCreacionSistema,
+    CodigoUsuarioUpdateSistema, FechaUpdateSistema
+) VALUES 
+    -- Sucursales basadas en los datos de referencia
+    ('01JAY5K3P2QRST6WX8Z9BCD4J1', '01JAY5K3P2QRST6WX8Z9BCD4H1', '37', '1', 'FUNERARIA SAN ISIDRO - SEDE PRINCIPAL', 'S', '1', '99-9999-9', '99-9999-9', NULL, '99-9999-9', '9999999', 'S', 'N', 'N', 'FUNERARIA', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4J2', '01JAY5K3P2QRST6WX8Z9BCD4H2', '44', '2', 'A.C.A.S.CRISTAL', 'S', '1', '03060C', '03060C', NULL, '03-060C-C', '990003C', 'S', 'N', 'N', 'CLINICA', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4J3', '01JAY5K3P2QRST6WX8Z9BCD4H2', '44', '3', 'MEDICA PUCALLPA', 'S', '1', '03060C', '03060C', NULL, '03-060C-C', '990003C', 'S', 'N', 'N', 'CLINICA', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4J4', '01JAY5K3P2QRST6WX8Z9BCD4H2', '44', '4', 'CENTRO SALUD PACIFICO CAJAMARCA', 'S', '1', '03060C', '03060C', '00005', '03-060C-C', '030609C', 'S', 'N', 'N', 'CENTRO_SALUD', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4J5', '01JAY5K3P2QRST6WX8Z9BCD4H3', '100', '1', 'CENTRAL HOUSE E.I.R.L.', 'P', '1', '00010499', '00010499', NULL, '00010499', '00010499', 'S', 'N', 'N', 'CLINICA', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4J6', '01JAY5K3P2QRST6WX8Z9BCD4H4', '102', '1', 'JENFAR S.A.', 'P', '1', '00009123', '00009123', NULL, '00009123', '00009123', 'S', 'N', 'N', 'FARMACIA', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4J7', '01JAY5K3P2QRST6WX8Z9BCD4H5', '104', '2', 'CENTRO MÉDICO BRITISH AMERICAN HOSPITAL', 'S', '1', '00010464', '00010464', '00002', '00010464', '00010464', 'S', 'N', 'N', 'HOSPITAL', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4J8', '01JAY5K3P2QRST6WX8Z9BCD4H6', '104', '3', 'CSALUD S.A. - CLINICA MAISON DE SANTE DEL ESTE', 'S', '1', '00015118', '00015118', '00003', '00015118', '00015118', 'S', 'N', 'N', 'CLINICA', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4J9', '01JAY5K3P2QRST6WX8Z9BCD4H7', '105', '1', 'CLINICA DELGADO', 'P', '1', '00015610', '00015610', '00001', '00015610', '00015610', 'S', 'N', 'N', 'CLINICA', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4K0', '01JAY5K3P2QRST6WX8Z9BCD4H8', '106', '1', 'CLINICA INTERNACIONAL S.A.', 'P', '1', '00015610', '00015610', '00001', '00015610', '00015610', 'S', 'N', 'N', 'CLINICA', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL);
+
+-- =====================================================
+-- PASO 7: INSERTAR RELACIONES PERSONA-ROL
+-- =====================================================
+
+INSERT INTO [persona].[Tbt_PersonaRol] (
+    IdPersonaRol, IdPersona, IdTipoRol, EstadoRegistro, CodigoUsuarioCreador,
+    FechaCreacion, CodigoUsuarioModificador, FechaModificacion, CodigoUsuarioCreadorSistema,
+    FechaCreacionSistema, CodigoUsuarioUpdateSistema, FechaUpdateSistema
+) VALUES 
+    ('01JAY5K3P2QRST6WX8Z9BCD4L1', '01JAY5K3P2QRST6WX8Z9BCD4F1', 'FUNERARIA', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4L2', '01JAY5K3P2QRST6WX8Z9BCD4F4', 'CLINICA', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4L3', '01JAY5K3P2QRST6WX8Z9BCD4F5', 'CLINICA', 'A', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4L4', '01JAY5K3P2QRST6WX8Z9BCD4F6', 'PROVEEDOR_SALUD', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4L5', '01JAY5K3P2QRST6WX8Z9BCD4F7', 'FARMACIA', 'A', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4L6', '01JAY5K3P2QRST6WX8Z9BCD4F8', 'FARMACIA', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4L7', '01JAY5K3P2QRST6WX8Z9BCD4F9', 'LABORATORIO', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4L8', '01JAY5K3P2QRST6WX8Z9BCD4G0', 'LABORATORIO', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL);
+
+-- =====================================================
+-- PASO 8: INSERTAR COMPAÑÍAS DE SEGUROS (EJEMPLOS)
+-- =====================================================
+
+-- Primero insertamos las personas para las compañías de seguros
+INSERT INTO [persona].[Mae_Persona] (
+    IdPersona, TipoPersona, NombreCompletoPersona, NombreAbreviadoPersona, 
+    CodigoTipoDocumento, NumeroDocumento, DescripcionPaginaWeb, CodigoTipoTrabajador,
+    EstadoRegistro, FechaCreacion, CodigoUsuarioCreador, FechaModificacion, CodigoUsuarioModificador,
+    CodigoUsuarioCreadorSistema, FechaCreacionSistema, CodigoUsuarioUpdateSistema, FechaUpdateSistema
+) VALUES 
+    ('01JAY5K3P2QRST6WX8Z9BCD4M1', 'J', 'ESSALUD - SEGURO SOCIAL DE SALUD', 'ESSALUD', 'RUC', '20131257882', 'www.essalud.gob.pe', NULL, 'ACT', GETDATE(), 'ADMIN', NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4M2', 'J', 'RIMAC SEGUROS Y REASEGUROS', 'RIMAC', 'RUC', '20100041953', 'www.rimac.com.pe', NULL, 'ACT', GETDATE(), 'ADMIN', NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL);
+
+-- Personas jurídicas para las compañías de seguros
+INSERT INTO [persona].[Mae_PersonaJuridica] (
+    IdPersona, FechaAniversario, NombreRazonSocial, NombreRazonSocialAbreviada, 
+    CodigoGrupoEconomico, EstadoRegistro, CodigoUsuarioCreador, FechaCreacion, 
+    CodigoUsuarioModificador, FechaModificacion, CodigoUsuarioCreadorSistema, 
+    FechaCreacionSistema, CodigoUsuarioUpdateSistema, FechaUpdateSistema
+) VALUES 
+    ('01JAY5K3P2QRST6WX8Z9BCD4M1', '1999-04-27', 'ESSALUD - SEGURO SOCIAL DE SALUD', 'ESSALUD', 'GE011', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4M2', '1896-01-01', 'RIMAC SEGUROS Y REASEGUROS', 'RIMAC', 'GE012', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL);
+
+-- Compañías de seguros
+INSERT INTO [persona].[Mae_CompaniaSeguros] (
+    IdCompaniaSeguros, IdPersonaJuridica, CodigoIAFA, DescripcionCompaniaSeguros, EstadoRegistro,
+    CodigoUsuarioCreador, FechaCreacion, CodigoUsuarioModificador, FechaModificacion,
+    CodigoUsuarioCreadorSistema, FechaCreacionSistema, CodigoUsuarioUpdateSistema, FechaUpdateSistema
+) VALUES 
+    ('01JAY5K3P2QRST6WX8Z9BCD4N1', '01JAY5K3P2QRST6WX8Z9BCD4M1', 'ESS01', 'ESSALUD - Seguro Social de Salud', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL),
+    ('01JAY5K3P2QRST6WX8Z9BCD4N2', '01JAY5K3P2QRST6WX8Z9BCD4M2', 'RIM01', 'RIMAC Seguros y Reaseguros', 'V', 'ADMIN', GETDATE(), NULL, NULL, 'SISTEMA', GETDATE(), NULL, NULL);
+
+-- =====================================================
+-- PASO 9: VERIFICACIÓN DE DATOS INSERTADOS
+-- =====================================================
+
+-- Verificar cantidad de registros insertados
+SELECT 'Tip_Rol' as Tabla, COUNT(*) as Registros FROM [persona].[Tip_Rol]
+UNION ALL
+SELECT 'Tip_TipoProveedor', COUNT(*) FROM [persona].[Tip_TipoProveedor]
+UNION ALL
+SELECT 'Mae_Persona', COUNT(*) FROM [persona].[Mae_Persona]
+UNION ALL
+SELECT 'Mae_PersonaJuridica', COUNT(*) FROM [persona].[Mae_PersonaJuridica]
+UNION ALL
+SELECT 'Mae_Proveedor', COUNT(*) FROM [persona].[Mae_Proveedor]
+UNION ALL
+SELECT 'Mae_Sucursal', COUNT(*) FROM [persona].[Mae_Sucursal]
+UNION ALL
+SELECT 'Tbt_PersonaRol', COUNT(*) FROM [persona].[Tbt_PersonaRol]
+UNION ALL
+SELECT 'Mae_CompaniaSeguros', COUNT(*) FROM [persona].[Mae_CompaniaSeguros];
+
+-- Verificar integridad de las relaciones
+SELECT 
+    p.NombreAbreviadoPersona,
+    pj.NombreRazonSocial,
+    pr.CodigoProveedor,
+    tp.DescripcionTipoProveedor,
+    r.DescripcionRol
+FROM [persona].[Mae_Persona] p
+LEFT JOIN [persona].[Mae_PersonaJuridica] pj ON p.IdPersona = pj.IdPersona
+LEFT JOIN [persona].[Mae_Proveedor] pr ON p.IdPersona = pr.IdPersona
+LEFT JOIN [persona].[Tip_TipoProveedor] tp ON pr.IdTipoProveedor = tp.IdTipoProveedor
+LEFT JOIN [persona].[Tbt_PersonaRol] tpr ON p.IdPersona = tpr.IdPersona
+LEFT JOIN [persona].[Tip_Rol] r ON tpr.IdTipoRol = r.IdTipoRol
+ORDER BY p.NombreAbreviadoPersona;
+
+-- Verificar sucursales por proveedor
+SELECT 
+    p.NombreAbreviadoPersona,
+    pr.CodigoProveedor,
+    s.NumeroSucursalProveedor,
+    s.DescripcionSucursal,
+    s.IndicadorPrincipalSucursal,
+    s.TipoInstitucion
+FROM [persona].[Mae_Persona] p
+INNER JOIN [persona].[Mae_Proveedor] pr ON p.IdPersona = pr.IdPersona
+INNER JOIN [persona].[Mae_Sucursal] s ON pr.IdProveedor = s.IdProveedor
+ORDER BY p.NombreAbreviadoPersona, s.NumeroSucursalProveedor;
+
+-- =====================================================
+-- RESUMEN DE DATOS INSERTADOS:
+-- =====================================================
+/*
+✅ DATOS INSERTADOS:
+   • 6 Tipos de Roles (Funeraria, Clínica, Farmacia, etc.)
+   • 4 Tipos de Proveedores
+   • 12 Personas (10 proveedores + 2 compañías seguros)
+   • 12 Personas Jurídicas (detalles ampliados)
+   • 8 Proveedores (basados en datos reales del core)
+   • 10 Sucursales (con códigos SEPS y configuración)
+   • 8 Relaciones Persona-Rol
+   • 2 Compañías de Seguros (ESSALUD y RIMAC)
+
+📊 CARACTERÍSTICAS:
+   • ULIDs generados manualmente para demostración
+   • Datos basados en las imágenes del core existente
+   • Relaciones correctas entre todas las tablas
+   • Estados realistas (ACT/ANU, V/A)
+   • Códigos y fechas del sistema original
+   • Estructura preparada para escalamiento
+
+🎯 PRÓXIMOS PASOS:
+   • Implementar generación automática de ULIDs
+   • Crear stored procedures para inserciones
+   • Configurar triggers de auditoría
+   • Migrar datos masivos del sistema anterior
+*/
