@@ -1,521 +1,340 @@
--- =====================================================================
--- ESQUEMA DE BASE DE DATOS - INTEGRACIÓN CON MICROSERVICIOS
--- Sistema Contratos Proveedores EPS
--- 
--- ARQUITECTURA:
--- - Esquema convenio: Datos desde microservicio "consulta-convenios"
--- - Esquema proveedor: Datos desde microservicio "consulta-proveedor" 
--- - Esquema contrato: Tablas core almacenadas localmente
--- - IDs: Generados externamente desde pipeline (ULID)
--- =====================================================================
+-- =====================================================
+-- SCRIPT PARA RECREAR TODAS LAS TABLAS CON ULID
+-- Y TIP_ROL CON IDTIPOROL VARCHAR(50)
+-- =====================================================
 
--- Configuración inicial
-SET NOCOUNT ON;
-SET ANSI_NULLS ON;
-SET QUOTED_IDENTIFIER ON;
+-- =====================================================
+-- PASO 1: ELIMINAR TODAS LAS TABLAS EXISTENTES
+-- (En orden correcto respetando Foreign Keys)
+-- =====================================================
 
-PRINT '======================================================================';
-PRINT 'CREANDO ESQUEMAS Y TABLAS - CONTRATOS PROVEEDORES CON MICROSERVICIOS';
-PRINT 'Arquitectura: Esquemas por microservicio + Tablas core locales';
-PRINT 'IDs: Generados externamente desde pipeline (ULID)';
-PRINT 'Fecha: ' + CONVERT(VARCHAR, GETDATE(), 120);
-PRINT '======================================================================';
+-- Eliminar tablas de relación primero
+DROP TABLE IF EXISTS Mae_SucursalCompaniaSeguro;
+DROP TABLE IF EXISTS Tbt_PersonaCompaniaSeguro;
+DROP TABLE IF EXISTS Tbt_PersonaRol;
+DROP TABLE IF EXISTS Mae_Sucursal;
+DROP TABLE IF EXISTS Mae_Proveedor;
 
--- =====================================================================
--- CREAR ESQUEMAS POR MICROSERVICIO
--- =====================================================================
+-- Eliminar tablas de catálogo
+DROP TABLE IF EXISTS Mae_CompaniaSeguros;
+DROP TABLE IF EXISTS Mae_PersonaJuridica;
+DROP TABLE IF EXISTS Tip_TipoProveedor;
+DROP TABLE IF EXISTS Tip_Rol;
 
--- Esquema para microservicio consulta-convenios
-IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'convenio')
-BEGIN
-    EXEC('CREATE SCHEMA convenio');
-    PRINT '✅ Esquema convenio creado';
-END
-ELSE
-    PRINT '⚠️  Esquema convenio ya existe';
+-- Eliminar tabla base
+DROP TABLE IF EXISTS Mae_Persona;
 
--- Esquema para microservicio consulta-proveedor
-IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'proveedor')
-BEGIN
-    EXEC('CREATE SCHEMA proveedor');
-    PRINT '✅ Esquema proveedor creado';
-END
-ELSE
-    PRINT '⚠️  Esquema proveedor ya existe';
+-- =====================================================
+-- PASO 2: RECREAR TABLAS CON ULID (VARCHAR(26))
+-- =====================================================
 
--- Esquema para tablas core de contratos
-IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'contrato')
-BEGIN
-    EXEC('CREATE SCHEMA contrato');
-    PRINT '✅ Esquema contrato creado';
-END
-ELSE
-    PRINT '⚠️  Esquema contrato ya existe';
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
 
--- Esquema para logs y auditoría
-IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'auditoria')
-BEGIN
-    EXEC('CREATE SCHEMA auditoria');
-    PRINT '✅ Esquema auditoria creado';
-END
-ELSE
-    PRINT '⚠️  Esquema auditoria ya existe';
-
--- =====================================================================
--- TABLA TIPO CONTRATO (Local - Core del negocio)
--- Esquema: contrato
--- =====================================================================
-
-CREATE TABLE contrato.Tip_TipoContrato (
-    tipoContratoId              NVARCHAR(26) NOT NULL, -- ULID desde pipeline
-    tipoContrato                INT NOT NULL,
-    descripContrato             NVARCHAR(255) NOT NULL,
-    descripcionResumidaContrato NVARCHAR(100) NULL,
-    codContratoSEPS            NVARCHAR(10) NULL,
-    DescripMecanismoPago       NVARCHAR(255) NULL,
-    codSUNASA                  NVARCHAR(5) NULL,
-    estRegistro                NVARCHAR(1) NOT NULL DEFAULT 'V',
-    codSistema                 NVARCHAR(5) NOT NULL,
-    codCompania                NVARCHAR(6) NOT NULL,
-    fechaEstado                NVARCHAR(15) NULL,
-    codUsuarioCreadorSistema   NVARCHAR(15) NULL,
-    fecCreacionsSistema        DATETIME NOT NULL DEFAULT GETDATE(),
-    codUsuarioUpdateSistema    NVARCHAR(15) NULL,
-    fecUpdateSistema           DATETIME NULL,
-    codUsuarioCreador          NVARCHAR(15) NOT NULL,
-    fecCreacion                DATETIME NOT NULL DEFAULT GETDATE(),
-    codUsuarioUpdate           NVARCHAR(15) NULL,
-    fecUpdate                  DATETIME NULL,
-    
-    CONSTRAINT PK_Tip_TipoContrato PRIMARY KEY (tipoContratoId),
-    CONSTRAINT UK_Tip_TipoContrato_Codigo UNIQUE (tipoContrato, codSistema, codCompania),
-    CONSTRAINT CK_Tip_TipoContrato_EstRegistro CHECK (estRegistro IN ('V', 'H', 'A')),
-    CONSTRAINT CK_Tip_TipoContrato_Sistema CHECK (codSistema IN ('ACSEL', 'INSIS', 'NVS')),
-    CONSTRAINT CK_Tip_TipoContrato_Compania CHECK (codCompania IN ('20002', '40004'))
+-- TABLA BASE: Mae_Persona
+CREATE TABLE Mae_Persona
+(
+    IdPersona                    VARCHAR(26)         NOT NULL    CONSTRAINT PK_Mae_Persona PRIMARY KEY,
+    TipoPersona                  CHAR(1)             NOT NULL,   -- J: Jurídica, N: Natural
+    NombreCompletoPersona        NVARCHAR(200)       NOT NULL,
+    NombreAbreviadoPersona       NVARCHAR(100)       NOT NULL,
+    CodigoTipoDocumento          VARCHAR(20)         NOT NULL,
+    NumeroDocumento              VARCHAR(20)         NOT NULL,
+    DescripcionPaginaWeb         NVARCHAR(100)       NULL,
+    CodigoTipoTrabajador         CHAR(1)             NULL,
+    EstadoRegistro               CHAR(3)             NOT NULL,   -- V: Vigente, A: Anulado
+    FechaCreacion                DATETIME            NOT NULL,
+    CodigoUsuarioCreador         VARCHAR(15)         NOT NULL,
+    FechaModificacion            DATETIME            NULL,
+    CodigoUsuarioModificador     VARCHAR(15)         NULL,
+    -- Campos de auditoría adicionales
+    CodigoUsuarioCreadorSistema  VARCHAR(15)         NOT NULL,
+    FechaCreacionSistema         DATETIME            NOT NULL,
+    CodigoUsuarioUpdateSistema   VARCHAR(15)         NULL,
+    FechaUpdateSistema           DATETIME            NULL
 );
+GO
 
--- =====================================================================
--- TABLAS DE REFERENCIA PARA MICROSERVICIOS
--- =====================================================================
-
--- TABLA DE REFERENCIA DE BENEFICIOS (Compatible con convenio.Mae_Beneficio)
--- Esquema: convenio
-CREATE TABLE convenio.Mae_BeneficioRef (
-    idBeneficio                 NVARCHAR(26) NOT NULL, -- ULID desde pipeline
-    idGrupoBeneficio           NVARCHAR(MAX) NULL,
-    idTipoCobertura            NVARCHAR(MAX) NULL,
-    idSubtipoCobertura         NVARCHAR(MAX) NULL,
-    codBeneficio               NVARCHAR(MAX) NULL,
-    descripcion                NVARCHAR(MAX) NULL,
-    desResumida                NVARCHAR(MAX) NULL,
-    codGrupoBeneficio          NVARCHAR(MAX) NULL,
-    codCobertura               NVARCHAR(MAX) NULL,
-    subtipoCobert              NVARCHAR(MAX) NULL,
-    -- Metadatos de sincronización con microservicio
-    ultimaActualizacion        DATETIME NOT NULL DEFAULT GETDATE(),
-    estadoSincronizacion       NVARCHAR(1) NOT NULL DEFAULT 'V', -- V=Vigente, P=Pendiente, E=Error
-    intentosSync               INT NOT NULL DEFAULT 0,
-    errorSync                  NVARCHAR(500) NULL,
-    -- Campos estándar de auditoría (compatibles con Mae_Beneficio)
-    estRegistro                NVARCHAR(MAX) NULL,
-    codSistema                 NVARCHAR(MAX) NULL,
-    compania                   NVARCHAR(MAX) NULL,
-    codUsuarioCreadorSistema   NVARCHAR(MAX) NULL,
-    fecCreacionSistema         DATETIME NULL,
-    codUsuarioUpdateSistema    NVARCHAR(MAX) NULL,
-    fecUpdateSistema           DATETIME NULL,
-    codUsuarioCreador          NVARCHAR(MAX) NULL,
-    fecCreacion                DATETIME NULL,
-    codUsuarioUpdate           NVARCHAR(MAX) NULL,
-    fecUpdate                  DATETIME NULL,
-    
-    CONSTRAINT PK_Mae_BeneficioRef PRIMARY KEY (idBeneficio)
+-- TABLA: Mae_PersonaJuridica
+CREATE TABLE Mae_PersonaJuridica
+(
+    IdPersona                      VARCHAR(26)         NOT NULL    CONSTRAINT PK_Mae_PersonaJuridica PRIMARY KEY
+        CONSTRAINT FK_Mae_PersonaJuridica_Mae_Persona REFERENCES Mae_Persona,
+    FechaAniversario               DATE                NULL,
+    NombreRazonSocial              VARCHAR(70)         NOT NULL,
+    NombreRazonSocialAbreviada     VARCHAR(50)         NULL,
+    CodigoGrupoEconomico           VARCHAR(6)          NULL,
+    EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
+    CodigoUsuarioCreador           VARCHAR(15)         NOT NULL,
+    FechaCreacion                  DATETIME            NOT NULL,
+    CodigoUsuarioModificador       VARCHAR(15)         NULL,
+    FechaModificacion              DATETIME            NULL,
+    -- Campos de auditoría adicionales
+    CodigoUsuarioCreadorSistema    VARCHAR(15)         NOT NULL,
+    FechaCreacionSistema           DATETIME            NOT NULL,
+    CodigoUsuarioUpdateSistema     VARCHAR(15)         NULL,
+    FechaUpdateSistema             DATETIME            NULL
 );
+GO
 
--- TABLA DE REFERENCIA DE PROVEEDORES
--- Esquema: proveedor
-CREATE TABLE proveedor.Mae_ProveedorRef (
-    idProveedor                 NVARCHAR(26) NOT NULL, -- ULID desde pipeline
-    CodigoProveedor             INT NOT NULL,
-    -- Campos mínimos para referencias y cache
-    RazonSocial                 NVARCHAR(MAX) NULL,
-    TipoProveedor               NVARCHAR(MAX) NULL,
-    ruc                         NVARCHAR(MAX) NULL,
-    -- Metadatos de sincronización con microservicio
-    ultimaActualizacion         DATETIME NOT NULL DEFAULT GETDATE(),
-    estadoSincronizacion        NVARCHAR(1) NOT NULL DEFAULT 'V',
-    intentosSync                INT NOT NULL DEFAULT 0,
-    errorSync                   NVARCHAR(500) NULL,
-    -- Campos estándar de auditoría
-    estRegistro                 NVARCHAR(MAX) NULL,
-    codSistema                  NVARCHAR(MAX) NULL,
-    compania                    NVARCHAR(MAX) NULL,
-    codUsuarioCreadorSistema    NVARCHAR(MAX) NULL,
-    fecCreacionSistema          DATETIME NULL,
-    codUsuarioUpdateSistema     NVARCHAR(MAX) NULL,
-    fecUpdateSistema            DATETIME NULL,
-    codUsuarioCreador           NVARCHAR(MAX) NULL,
-    fecCreacion                 DATETIME NULL,
-    codUsuarioUpdate            NVARCHAR(MAX) NULL,
-    fecUpdate                   DATETIME NULL,
-    
-    CONSTRAINT PK_Mae_ProveedorRef PRIMARY KEY (idProveedor)
+-- TABLA: Mae_CompaniaSeguros
+CREATE TABLE Mae_CompaniaSeguros
+(
+    IdCompaniaSeguros              VARCHAR(26)         NOT NULL    CONSTRAINT PK_Mae_CompaniaSeguros PRIMARY KEY,
+    IdPersonaJuridica              VARCHAR(26)         NOT NULL    
+        CONSTRAINT FK_Mae_CompaniaSeguros_Mae_PersonaJuridica REFERENCES Mae_PersonaJuridica,
+    CodigoIAFA                     VARCHAR(5)          NOT NULL,
+    DescripcionCompaniaSeguros     VARCHAR(40)         NOT NULL,
+    EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
+    CodigoUsuarioCreador           VARCHAR(15)         NOT NULL,
+    FechaCreacion                  DATETIME            NOT NULL,
+    CodigoUsuarioModificador       VARCHAR(15)         NULL,
+    FechaModificacion              DATETIME            NULL,
+    -- Campos de auditoría adicionales
+    CodigoUsuarioCreadorSistema    VARCHAR(15)         NOT NULL,
+    FechaCreacionSistema           DATETIME            NOT NULL,
+    CodigoUsuarioUpdateSistema     VARCHAR(15)         NULL,
+    FechaUpdateSistema             DATETIME            NULL
 );
+GO
 
--- TABLA DE REFERENCIA DE SUCURSALES DE PROVEEDORES
--- Esquema: proveedor
-CREATE TABLE proveedor.Mae_ProveedorSucursalRef (
-    idProveedorSucursal         NVARCHAR(26) NOT NULL, -- ULID desde pipeline
-    CodigoProveedor             INT NOT NULL,
-    NumeroSucursal              INT NOT NULL,
-    -- Campos esenciales para operaciones locales
-    CodigoIpress                NVARCHAR(MAX) NULL,
-    RegistroSeps                NVARCHAR(MAX) NULL,
-    Descripcion                 NVARCHAR(MAX) NULL,
-    direccion                   NVARCHAR(MAX) NULL,
-    -- Metadatos de sincronización
-    ultimaActualizacion         DATETIME NOT NULL DEFAULT GETDATE(),
-    estadoSincronizacion        NVARCHAR(1) NOT NULL DEFAULT 'V',
-    intentosSync                INT NOT NULL DEFAULT 0,
-    errorSync                   NVARCHAR(500) NULL,
-    -- Campos estándar de auditoría
-    estRegistro                 NVARCHAR(MAX) NULL,
-    codSistema                  NVARCHAR(MAX) NULL,
-    compania                    NVARCHAR(MAX) NULL,
-    codUsuarioCreadorSistema    NVARCHAR(MAX) NULL,
-    fecCreacionSistema          DATETIME NULL,
-    codUsuarioUpdateSistema     NVARCHAR(MAX) NULL,
-    fecUpdateSistema            DATETIME NULL,
-    codUsuarioCreador           NVARCHAR(MAX) NULL,
-    fecCreacion                 DATETIME NULL,
-    codUsuarioUpdate            NVARCHAR(MAX) NULL,
-    fecUpdate                   DATETIME NULL,
-    
-    CONSTRAINT PK_Mae_ProveedorSucursalRef PRIMARY KEY (idProveedorSucursal)
+-- TABLA: Tip_Rol (CON IDTIPOROL VARCHAR(50))
+CREATE TABLE Tip_Rol
+(
+    IdTipoRol                      VARCHAR(50)         NOT NULL    CONSTRAINT PK_Tip_Rol PRIMARY KEY,
+    CodigoLval                     VARCHAR(15)         NULL,
+    DescripcionRol                 VARCHAR(50)         NOT NULL,
+    EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
+    CodigoUsuarioCreador           VARCHAR(15)         NOT NULL,
+    FechaCreacion                  DATETIME            NOT NULL,
+    CodigoUsuarioModificador       VARCHAR(15)         NULL,
+    FechaModificacion              DATETIME            NULL,
+    -- Campos de auditoría adicionales
+    CodigoUsuarioCreadorSistema    VARCHAR(15)         NOT NULL,
+    FechaCreacionSistema           DATETIME            NOT NULL,
+    CodigoUsuarioUpdateSistema     VARCHAR(15)         NULL,
+    FechaUpdateSistema             DATETIME            NULL
 );
+GO
 
--- =====================================================================
--- TABLAS CORE DEL NEGOCIO (Almacenadas localmente)
--- Esquema: contrato
--- =====================================================================
-
--- TABLA PRINCIPAL DE CONTRATOS
-CREATE TABLE contrato.Contrato (
-    contratoId                  NVARCHAR(26) NOT NULL, -- ULID desde pipeline
-    nroContrato                 INT NOT NULL,
-    nroVersion                  INT NOT NULL,
-    -- Referencia a proveedor (código, no FK)
-    codProveedor                INT NOT NULL,
-    IndicadorCoberturaCliente   NVARCHAR(1) NULL DEFAULT 'N',
-    fechaInicioVigencia         DATE NULL,
-    fechaFinVigencia            DATE NULL,
-    descripcion                 NVARCHAR(500) NULL,
-    observaciones               NVARCHAR(1000) NULL,
-    -- Campos estándar de auditoría
-    estRegistro                 NVARCHAR(MAX) NULL,
-    codSistema                  NVARCHAR(MAX) NULL,
-    compania                    NVARCHAR(MAX) NULL,
-    codUsuarioCreadorSistema    NVARCHAR(MAX) NULL,
-    fecCreacionSistema          DATETIME NOT NULL DEFAULT GETDATE(),
-    codUsuarioUpdateSistema     NVARCHAR(MAX) NULL,
-    fecUpdateSistema            DATETIME NULL,
-    codUsuarioCreador           NVARCHAR(MAX) NULL,
-    fecCreacion                 DATETIME NOT NULL DEFAULT GETDATE(),
-    codUsuarioUpdate            NVARCHAR(MAX) NULL,
-    fecUpdate                   DATETIME NULL,
-    
-    CONSTRAINT PK_Contrato PRIMARY KEY (contratoId)
+-- TABLA: Tip_TipoProveedor
+CREATE TABLE Tip_TipoProveedor
+(
+    IdTipoProveedor                VARCHAR(26)         NOT NULL    CONSTRAINT PK_Tip_TipoProveedor PRIMARY KEY,
+    TipoProveedor                  NUMERIC(2,0)        NOT NULL,
+    DescripcionTipoProveedor       VARCHAR(150)        NOT NULL,
+    EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
+    CodigoUsuarioCreador           VARCHAR(15)         NOT NULL,
+    FechaCreacion                  DATETIME            NOT NULL,
+    CodigoUsuarioModificador       VARCHAR(15)         NULL,
+    FechaModificacion              DATETIME            NULL,
+    -- Campos de auditoría adicionales
+    CodigoUsuarioCreadorSistema    VARCHAR(15)         NOT NULL,
+    FechaCreacionSistema           DATETIME            NOT NULL,
+    CodigoUsuarioUpdateSistema     VARCHAR(15)         NULL,
+    FechaUpdateSistema             DATETIME            NULL
 );
+GO
 
--- TABLA DE VERSIONES DE CONTRATOS
-CREATE TABLE contrato.ContratoVersion (
-    contratoVersionId           NVARCHAR(26) NOT NULL, -- ULID desde pipeline
-    nroContrato                 INT NOT NULL,
-    nroVersion                  INT NOT NULL,
-    fechaInicioVigencia         DATE NOT NULL,
-    fechaFinVigencia            DATE NOT NULL,
-    descripcion                 NVARCHAR(500) NULL,
-    observaciones               NVARCHAR(1000) NULL,
-    -- Campos estándar de auditoría
-    estRegistro                 NVARCHAR(MAX) NULL,
-    codSistema                  NVARCHAR(MAX) NULL,
-    compania                    NVARCHAR(MAX) NULL,
-    codUsuarioCreadorSistema    NVARCHAR(MAX) NULL,
-    fecCreacionSistema          DATETIME NOT NULL DEFAULT GETDATE(),
-    codUsuarioUpdateSistema     NVARCHAR(MAX) NULL,
-    fecUpdateSistema            DATETIME NULL,
-    codUsuarioCreador           NVARCHAR(MAX) NULL,
-    fecCreacion                 DATETIME NOT NULL DEFAULT GETDATE(),
-    codUsuarioUpdate            NVARCHAR(MAX) NULL,
-    fecUpdate                   DATETIME NULL,
-    
-    CONSTRAINT PK_ContratoVersion PRIMARY KEY (contratoVersionId)
+-- TABLA: Mae_Proveedor
+CREATE TABLE Mae_Proveedor
+(
+    IdProveedor                    VARCHAR(26)         NOT NULL    CONSTRAINT PK_Mae_Proveedor PRIMARY KEY,
+    IdPersona                      VARCHAR(26)         NOT NULL    
+        CONSTRAINT FK_Mae_Proveedor_Mae_Persona REFERENCES Mae_Persona,
+    IdTipoProveedor                VARCHAR(26)         NOT NULL    
+        CONSTRAINT FK_Mae_Proveedor_Tip_TipoProveedor REFERENCES Tip_TipoProveedor,
+    CodigoProveedor                VARCHAR(10)         NOT NULL,
+    TipoProveedor                  NUMERIC(2,0)        NOT NULL,
+    IndicadorCertificacion         VARCHAR(1)          NULL,
+    IndicadorRedSelecta            VARCHAR(1)          NOT NULL,
+    EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
+    CodigoUsuarioCreador           VARCHAR(15)         NOT NULL,
+    FechaCreacion                  DATETIME            NOT NULL,
+    CodigoUsuarioModificador       VARCHAR(15)         NULL,
+    FechaModificacion              DATETIME            NULL,
+    -- Campos de auditoría adicionales
+    CodigoUsuarioCreadorSistema    VARCHAR(15)         NOT NULL,
+    FechaCreacionSistema           DATETIME            NOT NULL,
+    CodigoUsuarioUpdateSistema     VARCHAR(15)         NULL,
+    FechaUpdateSistema             DATETIME            NULL
 );
+GO
 
--- TABLA DE ASOCIACIÓN SUCURSAL-CONTRATO-VERSION
-CREATE TABLE contrato.SucursalContratoVersion (
-    contratoVersionSucursalId   NVARCHAR(26) NOT NULL, -- ULID desde pipeline
-    nroContrato                 INT NOT NULL,
-    nroversion                  INT NOT NULL,
-    -- Referencias por código (no FK a microservicios)
-    CodigoProveedor             INT NOT NULL,
-    nroSucursalProveedor        INT NOT NULL,
-    tipoContrato                INT NOT NULL,
-    fechaInicioVigencia         DATE NOT NULL,
-    fechaFinVigencia            DATE NOT NULL,
-    PlazoCredito                INT NULL,
-    registroSEPS                NVARCHAR(10) NULL,
-    codigoMoneda                INT NULL,
-    poblacionAsignada           INT NULL,
-    valorCapita                 NUMERIC(10,2) NULL,
-    -- Campos estándar de auditoría
-    estRegistro                 NVARCHAR(MAX) NULL,
-    codSistema                  NVARCHAR(MAX) NULL,
-    compania                    NVARCHAR(MAX) NULL,
-    codUsuarioCreadorSistema    NVARCHAR(MAX) NULL,
-    fecCreacionSistema          DATETIME NOT NULL DEFAULT GETDATE(),
-    codUsuarioUpdateSistema     NVARCHAR(MAX) NULL,
-    fecUpdateSistema            DATETIME NULL,
-    codUsuarioCreador           NVARCHAR(MAX) NULL,
-    fecCreacion                 DATETIME NOT NULL DEFAULT GETDATE(),
-    codUsuarioUpdate            NVARCHAR(MAX) NULL,
-    fecUpdate                   DATETIME NULL,
-    
-    CONSTRAINT PK_SucursalContratoVersion PRIMARY KEY (contratoVersionSucursalId)
+-- TABLA: Mae_Sucursal
+CREATE TABLE Mae_Sucursal
+(
+    IdSucursal                     VARCHAR(26)         NOT NULL    CONSTRAINT PK_Mae_Sucursal PRIMARY KEY,
+    IdProveedor                    VARCHAR(26)         NOT NULL    
+        CONSTRAINT FK_Mae_Sucursal_Mae_Proveedor REFERENCES Mae_Proveedor,
+    CodigoProveedor                VARCHAR(10)         NOT NULL,
+    NumeroSucursalProveedor        VARCHAR(4)          NOT NULL,
+    DescripcionSucursal            VARCHAR(150)        NOT NULL,
+    IndicadorPrincipalSucursal     VARCHAR(1)          NOT NULL,
+    CategoriaSucursal              CHAR(1)             NULL,
+    CodigoSucursalSeps             VARCHAR(10)         NULL,
+    RegistroSeps                   VARCHAR(10)         NULL,
+    IndicadorEPS                   VARCHAR(1)          NULL,
+    CodigoSeps                     VARCHAR(20)         NULL,
+    CodigoClinicaEps               VARCHAR(20)         NULL,
+    IndicadorRedSelecta            CHAR(1)             NULL,
+    IndicadorExoneracionIgv        VARCHAR(1)          NULL,
+    IndicadorDetraccion            VARCHAR(1)          NULL,
+    TipoInstitucion                VARCHAR(20)         NULL,
+    EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
+    CodigoUsuarioCreador           VARCHAR(15)         NOT NULL,
+    FechaCreacion                  DATETIME            NOT NULL,
+    CodigoUsuarioModificador       VARCHAR(15)         NULL,
+    FechaModificacion              DATETIME            NULL,
+    -- Campos de auditoría adicionales
+    CodigoUsuarioCreadorSistema    VARCHAR(15)         NOT NULL,
+    FechaCreacionSistema           DATETIME            NOT NULL,
+    CodigoUsuarioUpdateSistema     VARCHAR(15)         NULL,
+    FechaUpdateSistema             DATETIME            NULL
 );
+GO
 
--- TABLA DE BENEFICIOS POR SUCURSAL-CONTRATO-VERSION
-CREATE TABLE contrato.SucursalContratoVersionBeneficio (
-    SucursalContratoVersionBeneficioId NVARCHAR(26) NOT NULL, -- ULID desde pipeline
-    nroContrato                 INT NOT NULL,
-    nroVersion                  INT NOT NULL,
-    CodigoProveedor             INT NOT NULL,
-    nroSucursalProveedor        INT NOT NULL,
-    -- Referencia a beneficio (código, no FK a microservicio)
-    codigoBeneficio             NVARCHAR(MAX) NULL,
-    costoFijoPaciente           NUMERIC(9,2) NULL,
-    tipoPEAS                    NVARCHAR(1) NULL,
-    numVersion                  INT NULL,
-    fechaRegistroPEAS           DATE NULL,
-    condicionesAdicionales      NVARCHAR(1000) NULL,
-    -- Campos estándar de auditoría
-    estRegistro                 NVARCHAR(MAX) NULL,
-    codSistema                  NVARCHAR(MAX) NULL,
-    compania                    NVARCHAR(MAX) NULL,
-    codUsuarioCreadorSistema    NVARCHAR(MAX) NULL,
-    fecCreacionSistema          DATETIME NOT NULL DEFAULT GETDATE(),
-    codUsuarioUpdateSistema     NVARCHAR(MAX) NULL,
-    fecUpdateSistema            DATETIME NULL,
-    codUsuarioCreador           NVARCHAR(MAX) NULL,
-    fecCreacion                 DATETIME NOT NULL DEFAULT GETDATE(),
-    codUsuarioUpdate            NVARCHAR(MAX) NULL,
-    fecUpdate                   DATETIME NULL,
-    
-    CONSTRAINT PK_SucursalContratoVersionBeneficio PRIMARY KEY (SucursalContratoVersionBeneficioId)
+-- TABLA: Tbt_PersonaRol
+CREATE TABLE Tbt_PersonaRol
+(
+    IdPersonaRol                   VARCHAR(26)         NOT NULL    CONSTRAINT PK_Tbt_PersonaRol PRIMARY KEY,
+    IdPersona                      VARCHAR(26)         NOT NULL    
+        CONSTRAINT FK_Tbt_PersonaRol_Mae_Persona REFERENCES Mae_Persona,
+    IdTipoRol                      VARCHAR(50)         NOT NULL    
+        CONSTRAINT FK_Tbt_PersonaRol_Tip_Rol REFERENCES Tip_Rol,
+    EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
+    CodigoUsuarioCreador           VARCHAR(15)         NOT NULL,
+    FechaCreacion                  DATETIME            NOT NULL,
+    CodigoUsuarioModificador       VARCHAR(15)         NULL,
+    FechaModificacion              DATETIME            NULL,
+    -- Campos de auditoría adicionales
+    CodigoUsuarioCreadorSistema    VARCHAR(15)         NOT NULL,
+    FechaCreacionSistema           DATETIME            NOT NULL,
+    CodigoUsuarioUpdateSistema     VARCHAR(15)         NULL,
+    FechaUpdateSistema             DATETIME            NULL
 );
+GO
 
--- =====================================================================
--- TABLA DE LOG DE SINCRONIZACIÓN CON MICROSERVICIOS
--- Esquema: auditoria
--- =====================================================================
-
-CREATE TABLE auditoria.Log_SincronizacionMicroservicios (
-    LogId                       NVARCHAR(26) NOT NULL, -- ULID desde pipeline
-    TipoEntidad                 NVARCHAR(50) NOT NULL, -- PROVEEDOR, BENEFICIO, SUCURSAL
-    CodigoEntidad               NVARCHAR(50) NOT NULL, -- Código de la entidad
-    Microservicio               NVARCHAR(100) NOT NULL, -- consulta-proveedor, consulta-convenios
-    Operacion                   NVARCHAR(20) NOT NULL, -- CONSULTA, CACHE, ERROR
-    Estado                      NVARCHAR(20) NOT NULL, -- EXITOSO, ERROR, TIMEOUT
-    TiempoRespuesta             INT NULL, -- Milisegundos
-    MensajeError                NVARCHAR(1000) NULL,
-    DatosRequest                NVARCHAR(MAX) NULL, -- JSON del request
-    DatosResponse               NVARCHAR(MAX) NULL, -- JSON del response
-    VersionAPI                  NVARCHAR(10) NULL,
-    CorrelationId               NVARCHAR(50) NULL,
-    codSistema                  NVARCHAR(MAX) NULL,
-    compania                    NVARCHAR(MAX) NULL,
-    fecCreacion                 DATETIME NOT NULL DEFAULT GETDATE(),
-    codUsuarioCreador           NVARCHAR(15) NOT NULL DEFAULT 'SYSTEM',
-    
-    CONSTRAINT PK_Log_SincronizacionMicroservicios PRIMARY KEY (LogId),
-    CONSTRAINT CK_Log_Sync_TipoEntidad CHECK (TipoEntidad IN ('PROVEEDOR', 'BENEFICIO', 'SUCURSAL')),
-    CONSTRAINT CK_Log_Sync_Operacion CHECK (Operacion IN ('CONSULTA', 'CACHE', 'ERROR', 'TIMEOUT')),
-    CONSTRAINT CK_Log_Sync_Estado CHECK (Estado IN ('EXITOSO', 'ERROR', 'TIMEOUT', 'PENDIENTE'))
+-- TABLA: Tbt_PersonaCompaniaSeguro
+CREATE TABLE Tbt_PersonaCompaniaSeguro
+(
+    IdPersonaCompaniaSeguro        VARCHAR(26)         NOT NULL    CONSTRAINT PK_Tbt_PersonaCompaniaSeguro PRIMARY KEY,
+    IdPersona                      VARCHAR(26)         NOT NULL    
+        CONSTRAINT FK_Tbt_PersonaCompaniaSeguro_Mae_Persona REFERENCES Mae_Persona,
+    IdCompaniaSeguro               VARCHAR(26)         NOT NULL    
+        CONSTRAINT FK_Tbt_PersonaCompaniaSeguro_Mae_CompaniaSeguros REFERENCES Mae_CompaniaSeguros,
+    EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
+    CodigoUsuarioCreador           VARCHAR(15)         NOT NULL,
+    FechaCreacion                  DATETIME            NOT NULL,
+    CodigoUsuarioModificador       VARCHAR(15)         NULL,
+    FechaModificacion              DATETIME            NULL,
+    -- Campos de auditoría adicionales
+    CodigoUsuarioCreadorSistema    VARCHAR(15)         NOT NULL,
+    FechaCreacionSistema           DATETIME            NOT NULL,
+    CodigoUsuarioUpdateSistema     VARCHAR(15)         NULL,
+    FechaUpdateSistema             DATETIME            NULL
 );
+GO
 
--- =====================================================================
--- ÍNDICES OPTIMIZADOS
--- =====================================================================
+-- TABLA: Mae_SucursalCompaniaSeguro
+CREATE TABLE Mae_SucursalCompaniaSeguro
+(
+    IdSucursalCompaniaSeguro       VARCHAR(26)         NOT NULL    CONSTRAINT PK_Mae_SucursalCompaniaSeguro PRIMARY KEY,
+    IdSucursal                     VARCHAR(26)         NOT NULL    
+        CONSTRAINT FK_Mae_SucursalCompaniaSeguro_Mae_Sucursal REFERENCES Mae_Sucursal,
+    IdCompaniaSeguro               VARCHAR(26)         NOT NULL    
+        CONSTRAINT FK_Mae_SucursalCompaniaSeguro_Mae_CompaniaSeguros REFERENCES Mae_CompaniaSeguros,
+    CodigoProveedor                VARCHAR(10)         NOT NULL,
+    NumeroSucursalProveedor        VARCHAR(10)         NOT NULL,
+    EstadoRegistro                 CHAR(1)             NOT NULL,   -- V: Vigente, A: Anulado
+    CodigoUsuarioCreador           VARCHAR(15)         NOT NULL,
+    FechaCreacion                  DATETIME            NOT NULL,
+    CodigoUsuarioModificador       VARCHAR(15)         NULL,
+    FechaModificacion              DATETIME            NULL,
+    -- Campos de auditoría adicionales
+    CodigoUsuarioCreadorSistema    VARCHAR(15)         NOT NULL,
+    FechaCreacionSistema           DATETIME            NOT NULL,
+    CodigoUsuarioUpdateSistema     VARCHAR(15)         NULL,
+    FechaUpdateSistema             DATETIME            NULL
+);
+GO
 
--- Índices para Tip_TipoContrato
-CREATE INDEX IX_Tip_TipoContrato_TipoContrato ON contrato.Tip_TipoContrato (tipoContrato);
-CREATE INDEX IX_Tip_TipoContrato_Sistema_Compania ON contrato.Tip_TipoContrato (codSistema, codCompania);
+-- =====================================================
+-- PASO 3: CREAR ÍNDICES PARA OPTIMIZAR BÚSQUEDAS
+-- =====================================================
+CREATE NONCLUSTERED INDEX IX_Mae_Persona_01 ON Mae_Persona(NumeroDocumento, CodigoTipoDocumento);
+CREATE NONCLUSTERED INDEX IX_Mae_Proveedor_01 ON Mae_Proveedor(CodigoProveedor);
+CREATE NONCLUSTERED INDEX IX_Mae_Sucursal_01 ON Mae_Sucursal(CodigoProveedor, NumeroSucursalProveedor);
+CREATE NONCLUSTERED INDEX IX_Mae_PersonaJuridica_01 ON Mae_PersonaJuridica(NombreRazonSocial);
 
--- Índices para referencias de beneficios
-CREATE INDEX IX_Mae_BeneficioRef_CodBeneficio ON convenio.Mae_BeneficioRef (codBeneficio);
-CREATE INDEX IX_Mae_BeneficioRef_Sistema_Compania ON convenio.Mae_BeneficioRef (codSistema, compania);
-CREATE INDEX IX_Mae_BeneficioRef_EstadoSync ON convenio.Mae_BeneficioRef (estadoSincronizacion);
+-- =====================================================
+-- PASO 4: VERIFICACIÓN FINAL
+-- =====================================================
+-- Verificar estructura de todas las tablas
+SELECT 
+    TABLE_SCHEMA,
+    TABLE_NAME,
+    COLUMN_NAME,
+    DATA_TYPE,
+    CHARACTER_MAXIMUM_LENGTH,
+    IS_NULLABLE
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_NAME IN (
+    'Mae_Persona', 'Mae_PersonaJuridica', 'Mae_CompaniaSeguros',
+    'Tip_Rol', 'Tip_TipoProveedor', 'Mae_Proveedor', 'Mae_Sucursal',
+    'Tbt_PersonaRol', 'Tbt_PersonaCompaniaSeguro', 'Mae_SucursalCompaniaSeguro'
+)
+ORDER BY TABLE_NAME, ORDINAL_POSITION;
 
--- Índices para referencias de proveedores
-CREATE INDEX IX_Mae_ProveedorRef_CodigoProveedor ON proveedor.Mae_ProveedorRef (CodigoProveedor);
-CREATE INDEX IX_Mae_ProveedorRef_Sistema_Compania ON proveedor.Mae_ProveedorRef (codSistema, compania);
-CREATE INDEX IX_Mae_ProveedorRef_EstadoSync ON proveedor.Mae_ProveedorRef (estadoSincronizacion);
+-- Verificar todas las Foreign Keys recreadas
+SELECT 
+    fk.name AS FK_Name,
+    SCHEMA_NAME(tp.schema_id) + '.' + tp.name AS Parent_Table,
+    cp.name AS Parent_Column,
+    SCHEMA_NAME(tr.schema_id) + '.' + tr.name AS Referenced_Table,
+    cr.name AS Referenced_Column
+FROM sys.foreign_keys fk
+INNER JOIN sys.tables tp ON fk.parent_object_id = tp.object_id
+INNER JOIN sys.tables tr ON fk.referenced_object_id = tr.object_id
+INNER JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+INNER JOIN sys.columns cp ON fkc.parent_column_id = cp.column_id AND fkc.parent_object_id = cp.object_id
+INNER JOIN sys.columns cr ON fkc.referenced_column_id = cr.column_id AND fkc.referenced_object_id = cr.object_id
+ORDER BY fk.name;
 
--- Índices para sucursales
-CREATE INDEX IX_Mae_ProveedorSucursalRef_CodigoProveedor ON proveedor.Mae_ProveedorSucursalRef (CodigoProveedor);
-CREATE INDEX IX_Mae_ProveedorSucursalRef_NumeroSucursal ON proveedor.Mae_ProveedorSucursalRef (NumeroSucursal);
-
--- Índices para contratos
-CREATE INDEX IX_Contrato_NroContrato ON contrato.Contrato (nroContrato);
-CREATE INDEX IX_Contrato_CodProveedor ON contrato.Contrato (codProveedor);
-CREATE INDEX IX_Contrato_Sistema_Compania ON contrato.Contrato (codSistema, compania);
-
--- Índices para versiones de contratos
-CREATE INDEX IX_ContratoVersion_NroContrato ON contrato.ContratoVersion (nroContrato);
-CREATE INDEX IX_ContratoVersion_Sistema_Compania ON contrato.ContratoVersion (codSistema, compania);
-
--- Índices para sucursal contrato version
-CREATE INDEX IX_SucursalContratoVersion_NroContrato ON contrato.SucursalContratoVersion (nroContrato);
-CREATE INDEX IX_SucursalContratoVersion_CodigoProveedor ON contrato.SucursalContratoVersion (CodigoProveedor);
-CREATE INDEX IX_SucursalContratoVersion_TipoContrato ON contrato.SucursalContratoVersion (tipoContrato);
-
--- Índices para beneficios
-CREATE INDEX IX_SucursalContratoVersionBeneficio_CodigoBeneficio ON contrato.SucursalContratoVersionBeneficio (codigoBeneficio);
-CREATE INDEX IX_SucursalContratoVersionBeneficio_NroContrato ON contrato.SucursalContratoVersionBeneficio (nroContrato);
-
--- Índices para log de sincronización
-CREATE INDEX IX_Log_Sync_TipoEntidad_Codigo ON auditoria.Log_SincronizacionMicroservicios (TipoEntidad, CodigoEntidad);
-CREATE INDEX IX_Log_Sync_Microservicio ON auditoria.Log_SincronizacionMicroservicios (Microservicio);
-CREATE INDEX IX_Log_Sync_FechaCreacion ON auditoria.Log_SincronizacionMicroservicios (fecCreacion);
-
--- =====================================================================
--- DATOS INICIALES PARA TIPO CONTRATO
--- =====================================================================
-
--- Nota: Los IDs deben ser generados desde el pipeline
--- Este es solo un ejemplo de la estructura de datos esperada
-
+-- =====================================================
+-- RESUMEN DE CAMBIOS REALIZADOS:
+-- =====================================================
 /*
-INSERT INTO contrato.Tip_TipoContrato (
-    tipoContratoId, tipoContrato, descripContrato, descripcionResumidaContrato, 
-    codSistema, codCompania, codUsuarioCreador
-) VALUES
--- Los valores de tipoContratoId deben venir del pipeline con ULID generado
-*/
+✅ CAMBIOS PRINCIPALES:
+   1. UNIQUEIDENTIFIER → VARCHAR(26) para IDs principales (ULID)
+   2. Tip_Rol.IdTipoRol: VARCHAR(8) → VARCHAR(50)
+   3. Todas las relaciones FK actualizadas correctamente
+   4. Mantenida toda la estructura y lógica original
+   5. Índices recreados para performance
 
--- =====================================================================
--- PROCEDIMIENTOS PARA SINCRONIZACIÓN CON MICROSERVICIOS
--- =====================================================================
+📋 TABLAS AFECTADAS:
+   • Mae_Persona (IdPersona: UNIQUEIDENTIFIER → VARCHAR(26))
+   • Mae_PersonaJuridica (IdPersona: UNIQUEIDENTIFIER → VARCHAR(26))
+   • Mae_CompaniaSeguros (Id's: UNIQUEIDENTIFIER → VARCHAR(26))
+   • Tip_Rol (IdTipoRol: VARCHAR(8) → VARCHAR(50))
+   • Tip_TipoProveedor (IdTipoProveedor: UNIQUEIDENTIFIER → VARCHAR(26))
+   • Mae_Proveedor (Id's: UNIQUEIDENTIFIER → VARCHAR(26))
+   • Mae_Sucursal (Id's: UNIQUEIDENTIFIER → VARCHAR(26))
+   • Tbt_PersonaRol (Id's: UNIQUEIDENTIFIER/VARCHAR(8) → VARCHAR(26)/VARCHAR(50))
+   • Tbt_PersonaCompaniaSeguro (Id's: UNIQUEIDENTIFIER → VARCHAR(26))
+   • Mae_SucursalCompaniaSeguro (Id's: UNIQUEIDENTIFIER → VARCHAR(26))
 
--- Procedimiento para registrar logs de sincronización
-CREATE PROCEDURE auditoria.SP_RegistrarLogSincronizacion
-    @LogId NVARCHAR(26),
-    @TipoEntidad NVARCHAR(50),
-    @CodigoEntidad NVARCHAR(50),
-    @Microservicio NVARCHAR(100),
-    @Operacion NVARCHAR(20),
-    @Estado NVARCHAR(20),
-    @TiempoRespuesta INT = NULL,
-    @MensajeError NVARCHAR(1000) = NULL,
-    @DatosRequest NVARCHAR(MAX) = NULL,
-    @DatosResponse NVARCHAR(MAX) = NULL,
-    @CorrelationId NVARCHAR(50) = NULL,
-    @Sistema NVARCHAR(MAX) = 'ACSEL',
-    @Compania NVARCHAR(MAX) = '20002'
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    INSERT INTO auditoria.Log_SincronizacionMicroservicios (
-        LogId, TipoEntidad, CodigoEntidad, Microservicio, Operacion, Estado,
-        TiempoRespuesta, MensajeError, DatosRequest, DatosResponse,
-        CorrelationId, codSistema, compania
-    ) VALUES (
-        @LogId, @TipoEntidad, @CodigoEntidad, @Microservicio, @Operacion, @Estado,
-        @TiempoRespuesta, @MensajeError, @DatosRequest, @DatosResponse,
-        @CorrelationId, @Sistema, @Compania
-    );
-END;
+🎯 BENEFICIOS DEL ULID:
+   - Ordenamiento cronológico natural
+   - Mejor performance en índices
+   - Formato URL-safe
+   - Compatible con sistemas distribuidos
+   - Más legible que GUID
 
--- Procedimiento para obtener estadísticas de microservicios
-CREATE PROCEDURE auditoria.SP_EstadisticasMicroservicios
-    @FechaInicio DATE = NULL,
-    @FechaFin DATE = NULL
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    IF @FechaInicio IS NULL SET @FechaInicio = DATEADD(DAY, -7, GETDATE());
-    IF @FechaFin IS NULL SET @FechaFin = GETDATE();
-    
-    SELECT 
-        Microservicio,
-        TipoEntidad,
-        COUNT(*) AS TotalLlamadas,
-        COUNT(CASE WHEN Estado = 'EXITOSO' THEN 1 END) AS Exitosas,
-        COUNT(CASE WHEN Estado = 'ERROR' THEN 1 END) AS Errores,
-        COUNT(CASE WHEN Estado = 'TIMEOUT' THEN 1 END) AS Timeouts,
-        AVG(TiempoRespuesta) AS TiempoPromedioMs,
-        MIN(fecCreacion) AS PrimeraLlamada,
-        MAX(fecCreacion) AS UltimaLlamada
-    FROM auditoria.Log_SincronizacionMicroservicios
-    WHERE fecCreacion BETWEEN @FechaInicio AND @FechaFin
-    GROUP BY Microservicio, TipoEntidad
-    ORDER BY Microservicio, TipoEntidad;
-END;
-
-PRINT '';
-PRINT '======================================================================';
-PRINT 'ESQUEMAS Y TABLAS CREADOS PARA ARQUITECTURA DE MICROSERVICIOS';
-PRINT '======================================================================';
-PRINT 'Esquemas creados: 4 (convenio, proveedor, contrato, auditoria)';
-PRINT 'Tablas por esquema:';
-PRINT '  - convenio: 1 (Mae_BeneficioRef)';
-PRINT '  - proveedor: 2 (Mae_ProveedorRef, Mae_ProveedorSucursalRef)';
-PRINT '  - contrato: 4 (Tip_TipoContrato, Contrato, ContratoVersion, SucursalContratoVersion*, SucursalContratoVersionBeneficio)';
-PRINT '  - auditoria: 1 (Log_SincronizacionMicroservicios)';
-PRINT 'Índices optimizados: 15+';
-PRINT '';
-PRINT 'CONFIGURACIÓN DE IDs:';
-PRINT '  - Tipo: NVARCHAR(26) para ULID';
-PRINT '  - Origen: Generados desde pipeline de datos';
-PRINT '  - Compatibilidad: NVARCHAR(MAX) en campos estándar';
-PRINT '';
-PRINT 'MICROSERVICIOS INTEGRADOS:';
-PRINT '  - consulta-convenios → esquema convenio';
-PRINT '  - consulta-proveedor → esquema proveedor';
-PRINT '  - contratos (local) → esquema contrato';
-PRINT '  - logs y auditoría → esquema auditoria';
-PRINT '======================================================================';
-
-/*
-ARQUITECTURA CON ESQUEMAS POR MICROSERVICIO:
-
-1. ESQUEMA convenio:
-   - Mae_BeneficioRef: Compatible con Mae_Beneficio existente
-   - Campos NVARCHAR(MAX) para compatibilidad total
-   - Metadatos de sincronización añadidos
-
-2. ESQUEMA proveedor:
-   - Mae_ProveedorRef: Cache de proveedores
-   - Mae_ProveedorSucursalRef: Cache de sucursales
-   - Estructura compatible con estándar organizacional
-
-3. ESQUEMA contrato:
-   - Tip_TipoContrato: Tipos de contrato (local)
-   - Contrato: Tabla principal de contratos
-   - ContratoVersion: Versiones de contratos
-   - SucursalContratoVersion: Asociaciones sucursal-contrato
-   - SucursalContratoVersionBeneficio: Beneficios por contrato
-
-4. ESQUEMA auditoria:
-   - Log_SincronizacionMicroservicios: Logs de integración
-   - Procedimientos de auditoría y estadísticas
-
-VENTAJAS:
-✅ Separación clara por responsabilidades
-✅ Compatible con estructura existente
-✅ Escalable para nuevos microservicios
-✅ IDs externos desde pipeline
-✅ Logs completos de integración
+⚠️  IMPORTANTE:
+   - Todos los datos existentes se perderán
+   - Las aplicaciones necesitarán generar ULIDs válidos
+   - Verificar que los sistemas puedan manejar VARCHAR(26) para IDs
 */
