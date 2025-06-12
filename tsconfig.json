@@ -613,3 +613,221 @@ ORDER BY p.NombreAbreviadoPersona, s.NumeroSucursalProveedor;
    • Configurar triggers de auditoría
    • Migrar datos masivos del sistema anterior
 */
+
+
+-- =====================================================
+-- SCRIPT PARA ELIMINAR SOLO LOS FOREIGN KEY CONSTRAINTS
+-- MANTENIENDO LOS PRIMARY KEY INTACTOS
+-- =====================================================
+
+-- IMPORTANTE: Ejecutar en una transacción para seguridad
+BEGIN TRANSACTION;
+
+PRINT '====================================================';
+PRINT 'ELIMINANDO SOLO LOS FOREIGN KEY CONSTRAINTS';
+PRINT 'Fecha/Hora: ' + CONVERT(VARCHAR, GETDATE(), 120);
+PRINT '====================================================';
+
+-- =====================================================
+-- ELIMINAR TODOS LOS FOREIGN KEY CONSTRAINTS
+-- =====================================================
+PRINT 'Eliminando FOREIGN KEY constraints...';
+
+-- Esquema CONVENIO
+-- (Las tablas del esquema convenio no tienen FK explícitos definidos)
+
+-- Esquema PERSONA
+-- FK_Mae_PersonaJuridica_Mae_Persona
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Mae_PersonaJuridica_Mae_Persona')
+BEGIN
+    ALTER TABLE [persona].[Mae_PersonaJuridica] DROP CONSTRAINT FK_Mae_PersonaJuridica_Mae_Persona;
+    PRINT '  ✓ FK_Mae_PersonaJuridica_Mae_Persona eliminado';
+END
+
+-- FK_Mae_CompaniaSeguros_Mae_PersonaJuridica
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Mae_CompaniaSeguros_Mae_PersonaJuridica')
+BEGIN
+    ALTER TABLE [persona].[Mae_CompaniaSeguros] DROP CONSTRAINT FK_Mae_CompaniaSeguros_Mae_PersonaJuridica;
+    PRINT '  ✓ FK_Mae_CompaniaSeguros_Mae_PersonaJuridica eliminado';
+END
+
+-- FK_Mae_Proveedor_Mae_Persona
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Mae_Proveedor_Mae_Persona')
+BEGIN
+    ALTER TABLE [persona].[Mae_Proveedor] DROP CONSTRAINT FK_Mae_Proveedor_Mae_Persona;
+    PRINT '  ✓ FK_Mae_Proveedor_Mae_Persona eliminado';
+END
+
+-- FK_Mae_Proveedor_Tip_TipoProveedor
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Mae_Proveedor_Tip_TipoProveedor')
+BEGIN
+    ALTER TABLE [persona].[Mae_Proveedor] DROP CONSTRAINT FK_Mae_Proveedor_Tip_TipoProveedor;
+    PRINT '  ✓ FK_Mae_Proveedor_Tip_TipoProveedor eliminado';
+END
+
+-- FK_Mae_Sucursal_Mae_Proveedor
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Mae_Sucursal_Mae_Proveedor')
+BEGIN
+    ALTER TABLE [persona].[Mae_Sucursal] DROP CONSTRAINT FK_Mae_Sucursal_Mae_Proveedor;
+    PRINT '  ✓ FK_Mae_Sucursal_Mae_Proveedor eliminado';
+END
+
+-- FK_Tbt_PersonaRol_Mae_Persona
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Tbt_PersonaRol_Mae_Persona')
+BEGIN
+    ALTER TABLE [persona].[Tbt_PersonaRol] DROP CONSTRAINT FK_Tbt_PersonaRol_Mae_Persona;
+    PRINT '  ✓ FK_Tbt_PersonaRol_Mae_Persona eliminado';
+END
+
+-- FK_Tbt_PersonaRol_Tip_Rol
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Tbt_PersonaRol_Tip_Rol')
+BEGIN
+    ALTER TABLE [persona].[Tbt_PersonaRol] DROP CONSTRAINT FK_Tbt_PersonaRol_Tip_Rol;
+    PRINT '  ✓ FK_Tbt_PersonaRol_Tip_Rol eliminado';
+END
+
+-- FK_Tbt_PersonaCompaniaSeguro_Mae_Persona
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Tbt_PersonaCompaniaSeguro_Mae_Persona')
+BEGIN
+    ALTER TABLE [persona].[Tbt_PersonaCompaniaSeguro] DROP CONSTRAINT FK_Tbt_PersonaCompaniaSeguro_Mae_Persona;
+    PRINT '  ✓ FK_Tbt_PersonaCompaniaSeguro_Mae_Persona eliminado';
+END
+
+-- FK_Tbt_PersonaCompaniaSeguro_Mae_CompaniaSeguros
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Tbt_PersonaCompaniaSeguro_Mae_CompaniaSeguros')
+BEGIN
+    ALTER TABLE [persona].[Tbt_PersonaCompaniaSeguro] DROP CONSTRAINT FK_Tbt_PersonaCompaniaSeguro_Mae_CompaniaSeguros;
+    PRINT '  ✓ FK_Tbt_PersonaCompaniaSeguro_Mae_CompaniaSeguros eliminado';
+END
+
+-- FK_Mae_SucursalCompaniaSeguro_Mae_Sucursal
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Mae_SucursalCompaniaSeguro_Mae_Sucursal')
+BEGIN
+    ALTER TABLE [persona].[Mae_SucursalCompaniaSeguro] DROP CONSTRAINT FK_Mae_SucursalCompaniaSeguro_Mae_Sucursal;
+    PRINT '  ✓ FK_Mae_SucursalCompaniaSeguro_Mae_Sucursal eliminado';
+END
+
+-- FK_Mae_SucursalCompaniaSeguro_Mae_CompaniaSeguros
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Mae_SucursalCompaniaSeguro_Mae_CompaniaSeguros')
+BEGIN
+    ALTER TABLE [persona].[Mae_SucursalCompaniaSeguro] DROP CONSTRAINT FK_Mae_SucursalCompaniaSeguro_Mae_CompaniaSeguros;
+    PRINT '  ✓ FK_Mae_SucursalCompaniaSeguro_Mae_CompaniaSeguros eliminado';
+END
+
+-- =====================================================
+-- VERIFICAR LOS FK CONSTRAINTS EXISTENTES ANTES DE ELIMINAR
+-- =====================================================
+PRINT 'Foreign Keys existentes antes de eliminar:';
+SELECT 
+    SCHEMA_NAME(f.schema_id) AS Esquema,
+    OBJECT_NAME(f.parent_object_id) AS Tabla,
+    f.name AS NombreConstraint,
+    OBJECT_NAME(f.referenced_object_id) AS TablaReferenciada
+FROM sys.foreign_keys f
+WHERE SCHEMA_NAME(f.schema_id) IN ('persona', 'convenio')
+ORDER BY Esquema, Tabla;
+PRINT '---';
+
+-- =====================================================
+-- ELIMINAR FOREIGN KEYS EN ORDEN LÓGICO
+-- =====================================================
+
+-- =====================================================
+-- VERIFICAR QUE NO QUEDEN FOREIGN KEY CONSTRAINTS
+-- =====================================================
+PRINT '====================================================';
+PRINT 'VERIFICANDO FOREIGN KEY CONSTRAINTS RESTANTES...';
+PRINT '====================================================';
+
+-- Verificar Foreign Keys restantes
+DECLARE @FK_Count INT;
+SELECT @FK_Count = COUNT(*)
+FROM sys.foreign_keys f
+WHERE SCHEMA_NAME(f.schema_id) IN ('persona', 'convenio');
+
+IF @FK_Count = 0
+BEGIN
+    PRINT '✅ PERFECTO: No hay Foreign Key constraints restantes';
+END
+ELSE
+BEGIN
+    PRINT '⚠️  ATENCIÓN: Aún quedan ' + CAST(@FK_Count AS VARCHAR) + ' Foreign Keys:';
+    
+    SELECT 
+        SCHEMA_NAME(f.schema_id) AS Esquema,
+        OBJECT_NAME(f.parent_object_id) AS Tabla,
+        f.name AS NombreConstraint,
+        OBJECT_NAME(f.referenced_object_id) AS TablaReferenciada
+    FROM sys.foreign_keys f
+    WHERE SCHEMA_NAME(f.schema_id) IN ('persona', 'convenio')
+    ORDER BY Esquema, Tabla;
+END
+
+PRINT '====================================================';
+PRINT 'ELIMINACIÓN DE FOREIGN KEY CONSTRAINTS COMPLETADA';
+PRINT 'Los PRIMARY KEY constraints se mantienen intactos';
+PRINT '====================================================';
+
+-- CONFIRMAR TRANSACCIÓN
+COMMIT TRANSACTION;
+
+-- =====================================================
+-- SCRIPT PARA RECREAR SOLO LOS FOREIGN KEY CONSTRAINTS (OPCIONAL)
+-- Ejecutar solo si necesitas restaurar los Foreign Keys
+-- =====================================================
+
+/*
+-- =====================================================
+-- RECREAR FOREIGN KEY CONSTRAINTS
+-- =====================================================
+BEGIN TRANSACTION;
+
+PRINT 'Recreando FOREIGN KEY constraints...';
+
+ALTER TABLE [persona].[Mae_PersonaJuridica] 
+ADD CONSTRAINT FK_Mae_PersonaJuridica_Mae_Persona 
+FOREIGN KEY (IdPersona) REFERENCES [persona].[Mae_Persona](IdPersona);
+
+ALTER TABLE [persona].[Mae_CompaniaSeguros] 
+ADD CONSTRAINT FK_Mae_CompaniaSeguros_Mae_PersonaJuridica 
+FOREIGN KEY (IdPersonaJuridica) REFERENCES [persona].[Mae_PersonaJuridica](IdPersona);
+
+ALTER TABLE [persona].[Mae_Proveedor] 
+ADD CONSTRAINT FK_Mae_Proveedor_Mae_Persona 
+FOREIGN KEY (IdPersona) REFERENCES [persona].[Mae_Persona](IdPersona);
+
+ALTER TABLE [persona].[Mae_Proveedor] 
+ADD CONSTRAINT FK_Mae_Proveedor_Tip_TipoProveedor 
+FOREIGN KEY (IdTipoProveedor) REFERENCES [persona].[Tip_TipoProveedor](IdTipoProveedor);
+
+ALTER TABLE [persona].[Mae_Sucursal] 
+ADD CONSTRAINT FK_Mae_Sucursal_Mae_Proveedor 
+FOREIGN KEY (IdProveedor) REFERENCES [persona].[Mae_Proveedor](IdProveedor);
+
+ALTER TABLE [persona].[Tbt_PersonaRol] 
+ADD CONSTRAINT FK_Tbt_PersonaRol_Mae_Persona 
+FOREIGN KEY (IdPersona) REFERENCES [persona].[Mae_Persona](IdPersona);
+
+ALTER TABLE [persona].[Tbt_PersonaRol] 
+ADD CONSTRAINT FK_Tbt_PersonaRol_Tip_Rol 
+FOREIGN KEY (IdTipoRol) REFERENCES [persona].[Tip_Rol](IdTipoRol);
+
+ALTER TABLE [persona].[Tbt_PersonaCompaniaSeguro] 
+ADD CONSTRAINT FK_Tbt_PersonaCompaniaSeguro_Mae_Persona 
+FOREIGN KEY (IdPersona) REFERENCES [persona].[Mae_Persona](IdPersona);
+
+ALTER TABLE [persona].[Tbt_PersonaCompaniaSeguro] 
+ADD CONSTRAINT FK_Tbt_PersonaCompaniaSeguro_Mae_CompaniaSeguros 
+FOREIGN KEY (IdCompaniaSeguro) REFERENCES [persona].[Mae_CompaniaSeguros](IdCompaniaSeguros);
+
+ALTER TABLE [persona].[Mae_SucursalCompaniaSeguro] 
+ADD CONSTRAINT FK_Mae_SucursalCompaniaSeguro_Mae_Sucursal 
+FOREIGN KEY (IdSucursal) REFERENCES [persona].[Mae_Sucursal](IdSucursal);
+
+ALTER TABLE [persona].[Mae_SucursalCompaniaSeguro] 
+ADD CONSTRAINT FK_Mae_SucursalCompaniaSeguro_Mae_CompaniaSeguros 
+FOREIGN KEY (IdCompaniaSeguro) REFERENCES [persona].[Mae_CompaniaSeguros](IdCompaniaSeguros);
+
+PRINT 'FOREIGN KEY CONSTRAINTS RECREADOS EXITOSAMENTE';
+COMMIT TRANSACTION;
+*/
